@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -272,16 +273,50 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	}
 }
 
+// UpdateTaskConsumeLog 把异步任务完成后的真实额度与 token 用量回写到提交时的那条消耗日志，
+// 使用户账单呈现为单条扣款记录（而非"预扣+退款"两条）。
+// 返回 false 表示没找到原始消耗行（如升级前提交的旧任务），调用方应退回双行结算模式。
+func UpdateTaskConsumeLog(userId int, taskId string, quota int, completionTokens int, extra map[string]interface{}) bool {
+	if taskId == "" {
+		return false
+	}
+	var taskLog Log
+	pattern := "%\"task_id\":\"" + taskId + "\"%"
+	if err := LOG_DB.Where("user_id = ? AND type = ? AND other LIKE ?", userId, LogTypeConsume, pattern).First(&taskLog).Error; err != nil {
+		return false
+	}
+	other := map[string]interface{}{}
+	if taskLog.Other != "" {
+		_ = json.Unmarshal([]byte(taskLog.Other), &other)
+	}
+	for k, v := range extra {
+		other[k] = v
+	}
+	updates := map[string]interface{}{
+		"quota":             quota,
+		"completion_tokens": completionTokens,
+		"content":           taskLog.Content + "，任务完成，已按实际用量结算",
+		"other":             common.MapToJsonStr(other),
+	}
+	if err := LOG_DB.Model(&Log{}).Where("id = ?", taskLog.Id).Updates(updates).Error; err != nil {
+		common.SysLog("failed to update task consume log: " + err.Error())
+		return false
+	}
+	return true
+}
+
 type RecordTaskBillingLogParams struct {
-	UserId    int
-	LogType   int
-	Content   string
-	ChannelId int
-	ModelName string
-	Quota     int
-	TokenId   int
-	Group     string
-	Other     map[string]interface{}
+	UserId           int
+	LogType          int
+	Content          string
+	ChannelId        int
+	ModelName        string
+	Quota            int
+	TokenId          int
+	Group            string
+	PromptTokens     int
+	CompletionTokens int
+	Other            map[string]interface{}
 }
 
 func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
@@ -296,18 +331,20 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 		}
 	}
 	log := &Log{
-		UserId:    params.UserId,
-		Username:  username,
-		CreatedAt: common.GetTimestamp(),
-		Type:      params.LogType,
-		Content:   params.Content,
-		TokenName: tokenName,
-		ModelName: params.ModelName,
-		Quota:     params.Quota,
-		ChannelId: params.ChannelId,
-		TokenId:   params.TokenId,
-		Group:     params.Group,
-		Other:     common.MapToJsonStr(params.Other),
+		UserId:           params.UserId,
+		Username:         username,
+		CreatedAt:        common.GetTimestamp(),
+		Type:             params.LogType,
+		Content:          params.Content,
+		TokenName:        tokenName,
+		ModelName:        params.ModelName,
+		Quota:            params.Quota,
+		ChannelId:        params.ChannelId,
+		TokenId:          params.TokenId,
+		Group:            params.Group,
+		PromptTokens:     params.PromptTokens,
+		CompletionTokens: params.CompletionTokens,
+		Other:            common.MapToJsonStr(params.Other),
 	}
 	err := LOG_DB.Create(log).Error
 	if err != nil {

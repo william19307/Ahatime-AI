@@ -482,6 +482,14 @@ func RelayTaskFetch(c *gin.Context) {
 	}
 }
 
+// RelayTaskCancel 取消异步任务 (POST /v1/video/generations/:task_id/cancel)。
+// 仅向上游发起取消; 后续状态与退款由轮询器在任务进入终态时自动结算。
+func RelayTaskCancel(c *gin.Context) {
+	if taskErr := relay.RelayTaskCancel(c); taskErr != nil {
+		respondTaskError(c, taskErr)
+	}
+}
+
 func RelayTask(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -292,6 +293,16 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 
 	if sec, _ := strconv.Atoi(req.Seconds); sec > 0 {
 		r.Duration = lo.ToPtr(dto.IntValue(sec))
+	} else if req.Duration > 0 {
+		// 顶层 duration 字段透传（此前仅支持 seconds / metadata.duration）
+		r.Duration = lo.ToPtr(dto.IntValue(req.Duration))
+	}
+
+	// 顶层 size 字段透传为 resolution（支持 "480p"/"720p"/"1080p" 或 "1280x720"）
+	if r.Resolution == "" {
+		if res := normalizeResolution(req.Size); res != "" {
+			r.Resolution = res
+		}
 	}
 
 	r.Content = lo.Reject(r.Content, func(c ContentItem, _ int) bool { return c.Type == "text" })
@@ -301,6 +312,23 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 	})
 
 	return &r, nil
+}
+
+// normalizeResolution 把 "480p"/"720P"/"864x480"/"1280x720" 统一为 "480p"/"720p" 形式。
+func normalizeResolution(size string) string {
+	s := strings.ToLower(strings.TrimSpace(size))
+	if s == "" {
+		return ""
+	}
+	if strings.HasSuffix(s, "p") {
+		return s
+	}
+	if idx := strings.LastIndexByte(s, 'x'); idx > 0 {
+		if h, err := strconv.Atoi(s[idx+1:]); err == nil && h > 0 {
+			return fmt.Sprintf("%dp", h)
+		}
+	}
+	return ""
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {

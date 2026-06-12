@@ -562,3 +562,59 @@ func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 		Data:       task.Data,
 	}
 }
+
+// ---------------------------------------------------------------------------
+// 任务取消 (POST /v1/video/generations/:task_id/cancel)
+// ---------------------------------------------------------------------------
+
+// taskCancelAdaptor 渠道适配器可选实现的取消接口。
+type taskCancelAdaptor interface {
+	CancelTask(baseUrl, key, taskID, proxy string) error
+}
+
+// RelayTaskCancel 向上游发起任务取消。
+// 仅转发取消指令; 任务的最终状态与退款由轮询器在任务进入终态(失败/取消)时按既有逻辑结算。
+func RelayTaskCancel(c *gin.Context) *dto.TaskError {
+	taskId := c.Param("task_id")
+	userId := c.GetInt("id")
+
+	originTask, exist, err := model.GetByTaskId(userId, taskId)
+	if err != nil {
+		return service.TaskErrorWrapper(err, "get_task_failed", http.StatusInternalServerError)
+	}
+	if !exist {
+		return service.TaskErrorWrapperLocal(errors.New("task_not_exist"), "task_not_exist", http.StatusBadRequest)
+	}
+	if originTask.Status == model.TaskStatusSuccess || originTask.Status == model.TaskStatusFailure {
+		return service.TaskErrorWrapperLocal(errors.New("task already in final state"), "task_finished", http.StatusBadRequest)
+	}
+
+	adaptor := GetTaskAdaptor(originTask.Platform)
+	if adaptor == nil {
+		return service.TaskErrorWrapperLocal(errors.New("invalid platform"), "invalid_platform", http.StatusBadRequest)
+	}
+	canceller, ok := adaptor.(taskCancelAdaptor)
+	if !ok {
+		return service.TaskErrorWrapperLocal(errors.New("cancel not supported for this channel type"), "cancel_not_supported", http.StatusBadRequest)
+	}
+
+	ch, err := model.CacheGetChannel(originTask.ChannelId)
+	if err != nil {
+		return service.TaskErrorWrapper(err, "get_channel_failed", http.StatusInternalServerError)
+	}
+	baseURL := ch.GetBaseURL()
+	if baseURL == "" {
+		baseURL = constant.ChannelBaseURLs[ch.Type]
+	}
+
+	if err := canceller.CancelTask(baseURL, ch.Key, originTask.GetUpstreamTaskID(), ch.GetSetting().Proxy); err != nil {
+		return service.TaskErrorWrapper(err, "cancel_failed", http.StatusBadGateway)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    "success",
+		"message": "cancel submitted",
+		"data":    gin.H{"task_id": taskId},
+	})
+	return nil
+}

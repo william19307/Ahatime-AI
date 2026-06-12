@@ -1001,6 +1001,18 @@ func updateUserQuotaUsedQuotaAndRequestCount(id int, quota int, usedQuota int, r
 	}
 }
 
+// UpdateUserUsedQuotaDelta 调整用户累计已用额度（可为负，用于异步任务结算），不增加请求计数。
+func UpdateUserUsedQuotaDelta(id int, quota int) {
+	if quota == 0 {
+		return
+	}
+	if common.BatchUpdateEnabled {
+		addNewRecord(BatchUpdateTypeUsedQuota, id, quota)
+		return
+	}
+	updateUserUsedQuota(id, quota)
+}
+
 func updateUserUsedQuota(id int, quota int) {
 	err := DB.Model(&User{}).Where("id = ?", id).Updates(
 		map[string]interface{}{
