@@ -425,11 +425,107 @@ function buildImageSample(lang: Lang, ctx: SampleContext): string {
   ].join('\n')
 }
 
+// Video generation models (e.g. JD Seedance / drrfsmvr) speak an async
+// /v1/video/generations endpoint, not chat. Detect them by endpoint type,
+// path, or model name so the sample matches the real call.
+const VIDEO_MODEL_PATTERN = /seedance|drrfsmvr|video-gen/i
+
+function isVideoEndpoint(ctx: SampleContext): boolean {
+  return (
+    ctx.endpointType === 'video' ||
+    /\/video\//.test(ctx.endpointPath) ||
+    VIDEO_MODEL_PATTERN.test(ctx.modelName)
+  )
+}
+
+function buildVideoSample(lang: Lang, ctx: SampleContext): string {
+  const url = `${ctx.baseUrl}/v1/video/generations`
+  const prompt =
+    '一只小狗笑嘻嘻地飞奔去捡飞盘，叼住飞盘开心跑回，阳光草地，欢快氛围'
+
+  if (lang === 'curl') {
+    const body = JSON.stringify(
+      { model: ctx.modelName, prompt, duration: 5, size: '480p' },
+      null,
+      2
+    )
+    return [
+      `curl ${url} \\`,
+      `  -X POST \\`,
+      `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
+      `  -H "Content-Type: application/json" \\`,
+      `  -d '${body.replace(/\n/g, '\n     ')}'`,
+    ].join('\n')
+  }
+
+  if (lang === 'python') {
+    return [
+      'import requests',
+      '',
+      `url = "${url}"`,
+      'headers = {',
+      '    "Authorization": "Bearer <YOUR_API_KEY>",',
+      '    "Content-Type": "application/json",',
+      '}',
+      'payload = {',
+      `    "model": "${ctx.modelName}",`,
+      `    "prompt": "${prompt}",`,
+      '    "duration": 5,',
+      '    "size": "480p",',
+      '}',
+      '',
+      'response = requests.post(url, headers=headers, json=payload)',
+      'print(response.json())',
+    ].join('\n')
+  }
+
+  if (lang === 'typescript') {
+    return [
+      `const response = await fetch('${url}', {`,
+      `  method: 'POST',`,
+      `  headers: {`,
+      `    Authorization: \`Bearer \${process.env.${ctx.apiKeyEnv}}\`,`,
+      `    'Content-Type': 'application/json',`,
+      `  },`,
+      `  body: JSON.stringify({`,
+      `    model: '${ctx.modelName}',`,
+      `    prompt: '${prompt}',`,
+      `    duration: 5,`,
+      `    size: '480p',`,
+      `  }),`,
+      `})`,
+      '',
+      `const data = await response.json()`,
+      `console.log(data)`,
+    ].join('\n')
+  }
+
+  return [
+    `const response = await fetch('${url}', {`,
+    `  method: 'POST',`,
+    `  headers: {`,
+    `    Authorization: \`Bearer \${process.env.${ctx.apiKeyEnv}}\`,`,
+    `    'Content-Type': 'application/json',`,
+    `  },`,
+    `  body: JSON.stringify({`,
+    `    model: '${ctx.modelName}',`,
+    `    prompt: '${prompt}',`,
+    `    duration: 5,`,
+    `    size: '480p',`,
+    `  }),`,
+    `})`,
+    '',
+    `const data = await response.json()`,
+    `console.log(data)`,
+  ].join('\n')
+}
+
 function buildSample(
   lang: Lang,
   endpointType: string,
   ctx: SampleContext
 ): string {
+  if (isVideoEndpoint(ctx)) return buildVideoSample(lang, ctx)
   if (endpointType === 'anthropic') return buildAnthropicSample(lang, ctx)
   if (endpointType === 'gemini') return buildGeminiSample(lang, ctx)
   if (endpointType === 'embeddings' || endpointType === 'jina-rerank')
