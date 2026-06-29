@@ -75,6 +75,7 @@ const RegisterForm = () => {
   };
   const [inputs, setInputs] = useState({
     username: '',
+    display_name: '',
     password: '',
     password2: '',
     email: '',
@@ -216,6 +217,14 @@ const RegisterForm = () => {
   }
 
   async function handleSubmit(e) {
+    if (!inputs.display_name || inputs.display_name.trim() === '') {
+      showInfo('请输入公司名称');
+      return;
+    }
+    if (inputs.display_name.length > 20) {
+      showInfo('公司名称最多 20 个字符');
+      return;
+    }
     if (password.length < 8) {
       showInfo('密码长度不得小于 8 位！');
       return;
@@ -579,6 +588,15 @@ const RegisterForm = () => {
                   placeholder={t('请输入用户名')}
                   name='username'
                   onChange={(value) => handleChange('username', value)}
+                  prefix={<IconUser />}
+                />
+
+                <Form.Input
+                  field='display_name'
+                  label={t('公司名称')}
+                  placeholder={t('请输入公司名称')}
+                  name='display_name'
+                  onChange={(value) => handleChange('display_name', value)}
                   prefix={<IconUser />}
                 />
 

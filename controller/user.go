@@ -154,6 +154,11 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
 	}
+	// 公司名称（显示名称）必填
+	if user.DisplayName == "" {
+		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": "公司名称不能为空"})
+		return
+	}
 	if common.EmailVerificationEnabled {
 		if user.Email == "" || user.VerificationCode == "" {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)
@@ -179,7 +184,7 @@ func Register(c *gin.Context) {
 	cleanUser := model.User{
 		Username:    user.Username,
 		Password:    user.Password,
-		DisplayName: user.Username,
+		DisplayName: user.DisplayName, // 公司名称，存入显示名称
 		InviterId:   inviterId,
 		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
 	}

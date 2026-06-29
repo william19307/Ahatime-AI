@@ -87,6 +87,7 @@ export function SignUpForm({
     resolver: zodResolver(registerFormSchema),
     defaultValues: {
       username: '',
+      displayName: '',
       email: '',
       password: '',
       confirmPassword: '',
@@ -158,6 +159,7 @@ export function SignUpForm({
     try {
       const res = await register({
         username: data.username,
+        display_name: data.displayName,
         password: data.password,
         email: data.email || undefined,
         verification_code: verificationCode || undefined,
@@ -238,6 +240,21 @@ export function SignUpForm({
               <FormLabel>{t('Username')}</FormLabel>
               <FormControl>
                 <Input placeholder={t('Enter your username')} {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Organization Name Field（公司名称，必填） */}
+        <FormField
+          control={form.control}
+          name='displayName'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>公司名称</FormLabel>
+              <FormControl>
+                <Input placeholder='请输入公司名称' {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
