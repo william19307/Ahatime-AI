@@ -94,7 +94,7 @@ const LogsActions = ({
             icon={<IconDownload />}
             onClick={exportMonthlyReport}
           >
-            {t('导出月报')}
+            {t('导出当前筛选')}
           </Button>
         )}
         <CompactModeToggle

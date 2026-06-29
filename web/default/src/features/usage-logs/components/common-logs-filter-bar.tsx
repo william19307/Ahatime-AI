@@ -22,8 +22,10 @@ import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { type Table } from '@tanstack/react-table'
 import { Download, Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { Button } from '@/components/ui/button'
+import { api } from '@/lib/api'
 import {
   Select,
   SelectContent,
@@ -159,7 +161,7 @@ export function CommonLogsFilterBar<TData>(
     queryClient.invalidateQueries({ queryKey: ['usage-logs-stats'] })
   }, [navigate, queryClient])
 
-  const handleExportMonthlyReport = useCallback(() => {
+  const handleExportMonthlyReport = useCallback(async () => {
     const query = new URLSearchParams()
     if (filters.startTime) {
       query.set(
@@ -177,10 +179,36 @@ export function CommonLogsFilterBar<TData>(
     if (filters.token) query.set('token_name', filters.token)
     if (filters.group) query.set('group', filters.group)
     const suffix = query.toString()
-    window.location.assign(
-      `/api/log/self/monthly_report${suffix ? `?${suffix}` : ''}`
-    )
-  }, [filters])
+    const url = `/api/log/self/monthly_report${suffix ? `?${suffix}` : ''}`
+
+    try {
+      const response = await api.get(url, {
+        responseType: 'blob',
+        disableDuplicate: true,
+        skipErrorHandler: true,
+      })
+      const blob = response.data
+      const disposition = response.headers['content-disposition'] as
+        | string
+        | undefined
+      const filenameMatch =
+        disposition?.match(/filename\*=UTF-8''([^;]+)/) ||
+        disposition?.match(/filename="?([^";]+)"?/)
+      const filename = filenameMatch?.[1]
+        ? decodeURIComponent(filenameMatch[1])
+        : 'monthly-usage-report.xls'
+      const downloadUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(downloadUrl)
+    } catch (error) {
+      toast.error(t('导出失败，请刷新页面后重试'))
+    }
+  }, [filters, t])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -231,7 +259,7 @@ export function CommonLogsFilterBar<TData>(
           className='h-7 gap-1.5 px-2'
         >
           <Download className='size-3.5' />
-          {t('导出月报')}
+          {t('导出当前筛选')}
         </Button>
       )}
       <Tooltip>

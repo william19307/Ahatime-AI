@@ -796,7 +796,7 @@ export const useLogsData = () => {
     await loadLogs(1, pageSize);
   };
 
-  const exportMonthlyReport = () => {
+  const exportMonthlyReport = async () => {
     if (isAdminUser) {
       return;
     }
@@ -815,9 +815,33 @@ export const useLogsData = () => {
     if (model_name) params.set('model_name', model_name);
     if (group) params.set('group', group);
     const suffix = params.toString();
-    window.location.assign(
-      `/api/log/self/monthly_report${suffix ? `?${suffix}` : ''}`,
-    );
+    try {
+      const response = await API.get(
+        `/api/log/self/monthly_report${suffix ? `?${suffix}` : ''}`,
+        {
+          responseType: 'blob',
+          disableDuplicate: true,
+          skipErrorHandler: true,
+        },
+      );
+      const disposition = response.headers['content-disposition'];
+      const filenameMatch =
+        disposition?.match(/filename\*=UTF-8''([^;]+)/) ||
+        disposition?.match(/filename="?([^";]+)"?/);
+      const filename = filenameMatch?.[1]
+        ? decodeURIComponent(filenameMatch[1])
+        : 'monthly-usage-report.xls';
+      const downloadUrl = URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      showError(t('导出失败，请刷新页面后重试'));
+    }
   };
 
   // Copy text function
