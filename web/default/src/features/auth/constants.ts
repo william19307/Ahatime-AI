@@ -33,6 +33,10 @@ export const loginFormSchema = z.object({
 export const registerFormSchema = z
   .object({
     username: z.string().min(1, 'Please enter your username'),
+    displayName: z
+      .string()
+      .min(1, '请输入公司名称')
+      .max(20, '公司名称最多 20 个字符'),
     email: z.string().optional(),
     password: z
       .string()

@@ -787,13 +787,48 @@ function apiCategoryOf(model: PricingModel): ApiCategory {
  * shaped per-modality so reasoning, embedding, image, video and chat models
  * each show their relevant parameter set.
  */
+// Gemini 格式的图像模型（gemini-*-image）用 Gemini 原生参数，
+// 不是 OpenAI 的 prompt/size/n —— 它走 contents + generationConfig.responseModalities。
+const GEMINI_IMAGE_PARAMS: SupportedParameter[] = [
+  {
+    name: 'contents',
+    type: 'array',
+    required: true,
+    descriptionKey: 'Input content array (parts: text / inline_data, etc.)',
+  },
+  {
+    name: 'generationConfig.responseModalities',
+    type: 'array',
+    required: true,
+    descriptionKey: 'Output modalities; must include IMAGE, e.g. ["TEXT","IMAGE"]',
+  },
+  {
+    name: 'generationConfig.imageConfig.aspectRatio',
+    type: 'enum',
+    enumValues: ['1:1', '16:9', '4:3', '3:4', '9:16'],
+    descriptionKey: 'Aspect ratio of the generated image',
+  },
+  {
+    name: 'generationConfig.imageConfig.imageSize',
+    type: 'enum',
+    enumValues: ['1K', '2K'],
+    descriptionKey: 'Resolution of the generated image',
+  },
+]
+
 export function buildSupportedParameters(
   model: PricingModel
 ): SupportedParameter[] {
   const cat = apiCategoryOf(model)
   if (cat === 'reasoning') return REASONING_PARAMS
   if (cat === 'embedding') return EMBEDDING_PARAMS
-  if (cat === 'image') return IMAGE_PARAMS
+  if (cat === 'image') {
+    // Gemini 端点的图像模型用 Gemini 参数
+    if ((model.supported_endpoint_types || []).includes('gemini')) {
+      return GEMINI_IMAGE_PARAMS
+    }
+    return IMAGE_PARAMS
+  }
   if (cat === 'video') return VIDEO_PARAMS
   return COMMON_CHAT_PARAMS
 }

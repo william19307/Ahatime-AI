@@ -17,7 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Banner,
   Button,
@@ -49,10 +56,28 @@ import {
   useModelPricingEditorState,
 } from '../hooks/useModelPricingEditorState';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+import { StatusContext } from '../../../../context/Status';
 import TieredPricingEditor from './TieredPricingEditor';
 
 const { Text } = Typography;
 const EMPTY_CANDIDATE_MODEL_NAMES = [];
+
+// 币种上下文：底层价格始终以美元($/1M tokens)存储；人民币仅作为输入/显示口径，
+// 在 PriceInput 边界按汇率换算，不影响保存的倍率与后端计费。
+const CurrencyContext = React.createContext({ isRMB: false, rate: 7.3 });
+
+// 存储精度（写入美元价，10 位）与显示精度（人民币回显，8 位，消除换算尾噪）
+const fmtPrice = (n) => {
+  const num = Number(n);
+  if (!Number.isFinite(num)) return '';
+  return parseFloat(num.toFixed(10)).toString();
+};
+
+const fmtDisplay = (n) => {
+  const num = Number(n);
+  if (!Number.isFinite(num)) return '';
+  return parseFloat(num.toFixed(8)).toString();
+};
 
 const PriceInput = ({
   label,
@@ -64,26 +89,65 @@ const PriceInput = ({
   extraText = '',
   headerAction = null,
   hidden = false,
-}) => (
-  <div style={{ marginBottom: 16 }}>
-    <div className='mb-1 font-medium text-gray-700 flex items-center justify-between gap-3'>
-      <span>{label}</span>
-      {headerAction}
+}) => {
+  const { isRMB, rate } = useContext(CurrencyContext);
+  const toDisplay = (v) =>
+    isRMB && hasValue(v) ? fmtDisplay(Number(v) * rate) : hasValue(v) ? v : '';
+  // 本地草稿：人民币模式下保留用户原始输入（含未完成的小数点），避免换算把 "31." 吞掉
+  const [draft, setDraft] = useState(() => toDisplay(value));
+  const selfEdit = useRef(false);
+  useEffect(() => {
+    if (selfEdit.current) {
+      selfEdit.current = false;
+      return;
+    }
+    setDraft(toDisplay(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, isRMB, rate]);
+
+  const handleChange = (val) => {
+    setDraft(val);
+    selfEdit.current = true;
+    if (!hasValue(val)) {
+      onChange('');
+      return;
+    }
+    if (isRMB) {
+      const num = Number(val);
+      onChange(Number.isFinite(num) ? fmtPrice(num / rate) : '');
+    } else {
+      onChange(val);
+    }
+  };
+
+  const dispSuffix =
+    isRMB && typeof suffix === 'string' ? suffix.replace('$', '¥') : suffix;
+  const dispPlaceholder =
+    isRMB && typeof placeholder === 'string'
+      ? placeholder.replace('$', '¥')
+      : placeholder;
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div className='mb-1 font-medium text-gray-700 flex items-center justify-between gap-3'>
+        <span>{label}</span>
+        {headerAction}
+      </div>
+      {!hidden ? (
+        <Input
+          value={draft}
+          placeholder={dispPlaceholder}
+          onChange={handleChange}
+          suffix={dispSuffix}
+          disabled={disabled}
+        />
+      ) : null}
+      {extraText ? (
+        <div className='mt-1 text-xs text-gray-500'>{extraText}</div>
+      ) : null}
     </div>
-    {!hidden ? (
-      <Input
-        value={value}
-        placeholder={placeholder}
-        onChange={onChange}
-        suffix={suffix}
-        disabled={disabled}
-      />
-    ) : null}
-    {extraText ? (
-      <div className='mt-1 text-xs text-gray-500'>{extraText}</div>
-    ) : null}
-  </div>
-);
+  );
+};
 
 export default function ModelPricingEditor({
   options,
@@ -102,6 +166,17 @@ export default function ModelPricingEditor({
   const [addVisible, setAddVisible] = useState(false);
   const [batchVisible, setBatchVisible] = useState(false);
   const [newModelName, setNewModelName] = useState('');
+
+  // 价格输入币种：USD（默认，与后端基准一致）/ CNY（按汇率换算）
+  const [statusState] = useContext(StatusContext);
+  const usdRate = useMemo(() => {
+    const raw =
+      statusState?.status?.usd_exchange_rate ?? statusState?.status?.price;
+    const num = Number(raw);
+    return Number.isFinite(num) && num > 0 ? num : 7.3;
+  }, [statusState]);
+  const [currency, setCurrency] = useState('USD');
+  const isRMB = currency === 'CNY';
 
   const {
     selectedModel,
@@ -251,7 +326,7 @@ export default function ModelPricingEditor({
   };
 
   return (
-    <>
+    <CurrencyContext.Provider value={{ isRMB, rate: usdRate }}>
       <Space vertical align='start' style={{ width: '100%' }}>
         <Space wrap className='mt-2'>
           {allowAddModel ? (
@@ -288,6 +363,22 @@ export default function ModelPricingEditor({
             style={{ width: isMobile ? '100%' : 220 }}
             showClear
           />
+          <RadioGroup
+            type='button'
+            size='small'
+            value={currency}
+            onChange={(event) => setCurrency(event.target.value)}
+          >
+            <Radio value='USD'>{t('美元 $')}</Radio>
+            <Radio value='CNY'>{t('人民币 ¥')}</Radio>
+          </RadioGroup>
+          {isRMB ? (
+            <Text type='tertiary' size='small'>
+              {t('按汇率 {{rate}} 折算为美元存储，不影响计费', {
+                rate: usdRate,
+              })}
+            </Text>
+          ) : null}
           {showConflictFilter ? (
             <Checkbox
               checked={conflictOnly}
@@ -776,6 +867,6 @@ export default function ModelPricingEditor({
           </div>
         ) : null}
       </Modal>
-    </>
+    </CurrencyContext.Provider>
   );
 }

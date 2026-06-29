@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useContext, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import {
@@ -27,6 +28,13 @@ import {
   SettingsControlGroup,
   SettingsSwitchField,
 } from '../components/settings-form-layout'
+import { PriceCurrencyContext } from './price-currency'
+
+// 存储精度（写入美元价 10 位）与显示精度（人民币回显 8 位，消除换算尾噪）
+const fmtStore = (n: number) =>
+  Number.isFinite(n) ? String(parseFloat(n.toFixed(10))) : ''
+const fmtDisplay = (n: number) =>
+  Number.isFinite(n) ? String(parseFloat(n.toFixed(8))) : ''
 
 export function PriceInput(props: {
   value: string
@@ -34,17 +42,54 @@ export function PriceInput(props: {
   disabled?: boolean
   onChange: (value: string) => void
 }) {
+  const { isRMB, rate } = useContext(PriceCurrencyContext)
+  // 人民币模式下保留用户原始输入（含未完成的小数点），避免换算把 "31." 吞掉
+  const [draft, setDraft] = useState('')
+  const selfEdit = useRef(false)
+
+  useEffect(() => {
+    if (!isRMB) return
+    if (selfEdit.current) {
+      selfEdit.current = false
+      return
+    }
+    setDraft(
+      props.value !== '' && props.value != null
+        ? fmtDisplay(Number(props.value) * rate)
+        : ''
+    )
+  }, [props.value, isRMB, rate])
+
+  const handleChange = (raw: string) => {
+    if (!isRMB) {
+      props.onChange(raw)
+      return
+    }
+    setDraft(raw)
+    selfEdit.current = true
+    if (raw === '' || raw == null) {
+      props.onChange('')
+      return
+    }
+    const num = Number(raw)
+    props.onChange(Number.isFinite(num) ? fmtStore(num / rate) : '')
+  }
+
+  const value = isRMB ? draft : props.value
+  const symbol = isRMB ? '¥' : '$'
+  const suffix = isRMB ? '¥/1M' : '$/1M'
+
   return (
     <InputGroup>
-      <InputGroupAddon>$</InputGroupAddon>
+      <InputGroupAddon>{symbol}</InputGroupAddon>
       <InputGroupInput
         inputMode='decimal'
-        value={props.value}
+        value={value}
         placeholder={props.placeholder}
         disabled={props.disabled}
-        onChange={(event) => props.onChange(event.target.value)}
+        onChange={(event) => handleChange(event.target.value)}
       />
-      <InputGroupAddon align='inline-end'>$/1M</InputGroupAddon>
+      <InputGroupAddon align='inline-end'>{suffix}</InputGroupAddon>
     </InputGroup>
   )
 }

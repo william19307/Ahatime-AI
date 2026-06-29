@@ -127,7 +127,39 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 
 }
 
+// --- 京东 JoyAgent Gemini 图像适配 ---
+// 京东把 Gemini 图像模型包在自有 plugin-u 路径下 (agentrs.jd.com/api/saas/plugin-u/v1/exec/<Model>)，
+// 请求/响应仍是标准 Gemini 格式，仅「请求路径」和「鉴权头」不同。
+// 按 base URL 识别为京东后改走 JD 路径 + Bearer 鉴权，其余逻辑全部复用 Gemini 适配器。
+var jdGeminiModelPath = map[string]string{
+	"gemini-2.5-flash-image":         "Gemini-2-5-flash-image",
+	"gemini-3-pro-image-preview":     "Gemini-3-pro-image-preview",
+	"gemini-3.1-flash-image-preview": "Gemini-3-1-flash-image-preview",
+}
+
+func isJDGeminiBase(baseURL string) bool {
+	return strings.Contains(baseURL, "agentrs.jd.com") || strings.Contains(baseURL, "/plugin-u")
+}
+
+func jdGeminiRequestURL(baseURL, model string) string {
+	baseURL = strings.TrimSuffix(baseURL, "/")
+	seg, ok := jdGeminiModelPath[model]
+	if !ok {
+		// 兜底：gemini-2.5-x → Gemini-2-5-x（首字母大写、点转连字符）
+		seg = strings.ReplaceAll(model, ".", "-")
+		if strings.HasPrefix(seg, "gemini-") {
+			seg = "Gemini-" + strings.TrimPrefix(seg, "gemini-")
+		}
+	}
+	return fmt.Sprintf("%s/api/saas/plugin-u/v1/exec/%s", baseURL, seg)
+}
+
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+
+	// 京东 plugin-u 自定义路径优先（格式仍是标准 Gemini）
+	if isJDGeminiBase(info.ChannelBaseUrl) {
+		return jdGeminiRequestURL(info.ChannelBaseUrl, info.UpstreamModelName), nil
+	}
 
 	if model_setting.GetGeminiSettings().ThinkingAdapterEnabled &&
 		!model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName) {
@@ -172,7 +204,12 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
-	req.Set("x-goog-api-key", info.ApiKey)
+	if isJDGeminiBase(info.ChannelBaseUrl) {
+		// 京东用 Authorization: Bearer 鉴权
+		req.Set("Authorization", "Bearer "+info.ApiKey)
+	} else {
+		req.Set("x-goog-api-key", info.ApiKey)
+	}
 	return nil
 }
 

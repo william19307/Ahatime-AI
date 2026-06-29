@@ -238,8 +238,82 @@ function buildAnthropicSample(lang: Lang, ctx: SampleContext): string {
   ].join('\n')
 }
 
+const GEMINI_IMAGE_PATTERN = /image/i
+
 function buildGeminiSample(lang: Lang, ctx: SampleContext): string {
   const url = `${ctx.baseUrl}${ctx.endpointPath}?key=$${ctx.apiKeyEnv}`
+
+  // Gemini 图像模型（gemini-*-image）必须带 responseModalities，返回的是图片 base64；
+  // 示例直接把它解码保存成 output.png，用户打开即可看图（不用看一堆 base64）。
+  if (GEMINI_IMAGE_PATTERN.test(ctx.modelName)) {
+    const prompt = '一只可爱的小猫，水彩画风格'
+    if (lang === 'curl') {
+      const body = JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseModalities: ['TEXT', 'IMAGE'],
+          imageConfig: { aspectRatio: '1:1', imageSize: '1K' },
+        },
+      })
+      return [
+        '# 生成并直接存成 output.png（打开即看图，不会刷屏 base64）',
+        `curl -s '${url}' \\`,
+        `  -H 'Content-Type: application/json' \\`,
+        `  -d '${body}' \\`,
+        `  | python3 -c "import sys,json,base64; d=json.load(sys.stdin); [open('output.png','wb').write(base64.b64decode(p['inlineData']['data'])) for p in d['candidates'][0]['content']['parts'] if 'inlineData' in p]; print('已保存 output.png，打开即可查看')"`,
+        '',
+        '# 改提示词：-d 里的 text   宽高比 aspectRatio：1:1/16:9/4:3/3:4/9:16   分辨率 imageSize：1K/2K',
+      ].join('\n')
+    }
+    if (lang === 'python') {
+      return [
+        'import requests, base64',
+        '',
+        `url = "${ctx.baseUrl}${ctx.endpointPath}?key=<YOUR_API_KEY>"`,
+        'payload = {',
+        `    "contents": [{"parts": [{"text": "${prompt}"}]}],  # 提示词`,
+        '    "generationConfig": {',
+        '        "responseModalities": ["TEXT", "IMAGE"],',
+        '        "imageConfig": {"aspectRatio": "1:1", "imageSize": "1K"},  # 宽高比 / 分辨率',
+        '    },',
+        '}',
+        'resp = requests.post(url, json=payload).json()',
+        '',
+        '# 把返回的 base64 图片解码保存成文件，打开即可查看',
+        'for part in resp["candidates"][0]["content"]["parts"]:',
+        '    if "inlineData" in part:',
+        '        with open("output.png", "wb") as f:',
+        '            f.write(base64.b64decode(part["inlineData"]["data"]))',
+        '        print("已保存 output.png")',
+      ].join('\n')
+    }
+    return [
+      `import { writeFileSync } from 'fs'`,
+      '',
+      `const url = '${ctx.baseUrl}${ctx.endpointPath}?key=' + process.env.${ctx.apiKeyEnv}`,
+      `const resp = await fetch(url, {`,
+      `  method: 'POST',`,
+      `  headers: { 'Content-Type': 'application/json' },`,
+      `  body: JSON.stringify({`,
+      `    contents: [{ parts: [{ text: '${prompt}' }] }], // 提示词`,
+      `    generationConfig: {`,
+      `      responseModalities: ['TEXT', 'IMAGE'],`,
+      `      imageConfig: { aspectRatio: '1:1', imageSize: '1K' }, // 宽高比 / 分辨率`,
+      `    },`,
+      `  }),`,
+      `})`,
+      `const data = await resp.json()`,
+      '',
+      `// 把 base64 图片解码保存成文件，打开即可查看`,
+      `for (const part of data.candidates[0].content.parts) {`,
+      `  if (part.inlineData) {`,
+      `    writeFileSync('output.png', Buffer.from(part.inlineData.data, 'base64'))`,
+      `    console.log('已保存 output.png')`,
+      `  }`,
+      `}`,
+    ].join('\n')
+  }
+
   const userMessage = 'Explain quantum entanglement in one paragraph.'
 
   if (lang === 'curl') {
@@ -440,21 +514,38 @@ function isVideoEndpoint(ctx: SampleContext): boolean {
 
 function buildVideoSample(lang: Lang, ctx: SampleContext): string {
   const url = `${ctx.baseUrl}/v1/video/generations`
+  const key = ctx.apiKeyEnv
+  const model = ctx.modelName
   const prompt =
     '一只小狗笑嘻嘻地飞奔去捡飞盘，叼住飞盘开心跑回，阳光草地，欢快氛围'
 
   if (lang === 'curl') {
-    const body = JSON.stringify(
-      { model: ctx.modelName, prompt, duration: 5, size: '480p' },
-      null,
-      2
-    )
     return [
-      `curl ${url} \\`,
-      `  -X POST \\`,
-      `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
+      '# ① 文生视频 — 提交任务（返回 id，作为后续查询的任务ID）',
+      `curl ${url} -X POST \\`,
+      `  -H "Authorization: Bearer $${key}" \\`,
       `  -H "Content-Type: application/json" \\`,
-      `  -d '${body.replace(/\n/g, '\n     ')}'`,
+      `  -d '{"model":"${model}","prompt":"${prompt}","duration":5,"size":"480p"}'`,
+      '',
+      '# ② 图生视频 — body 顶层加 images（参考图链接，可多张）',
+      `curl ${url} -X POST \\`,
+      `  -H "Authorization: Bearer $${key}" \\`,
+      `  -H "Content-Type: application/json" \\`,
+      `  -d '{"model":"${model}","prompt":"让参考图动起来","duration":5,"size":"480p","images":["https://example.com/ref.png"]}'`,
+      '',
+      '# ③ 参考视频生视频 — 用 metadata.content 放 video_url（role=reference_video）',
+      `curl ${url} -X POST \\`,
+      `  -H "Authorization: Bearer $${key}" \\`,
+      `  -H "Content-Type: application/json" \\`,
+      `  -d '{"model":"${model}","prompt":"参考该视频的运镜","duration":5,"size":"480p","metadata":{"content":[{"type":"video_url","video_url":{"url":"https://example.com/ref.mp4"},"role":"reference_video"}]}}'`,
+      '',
+      '# ④ 查询结果 — 用上一步返回的 id 轮询；status=completed 时取 metadata.url',
+      `curl ${url}/任务ID \\`,
+      `  -H "Authorization: Bearer $${key}"`,
+      '',
+      '# ⑤ 取消任务（可选）',
+      `curl ${url}/任务ID/cancel -X POST \\`,
+      `  -H "Authorization: Bearer $${key}"`,
     ].join('\n')
   }
 
@@ -462,61 +553,70 @@ function buildVideoSample(lang: Lang, ctx: SampleContext): string {
     return [
       'import requests',
       '',
-      `url = "${url}"`,
-      'headers = {',
+      `BASE = "${url}"`,
+      'HEADERS = {',
       '    "Authorization": "Bearer <YOUR_API_KEY>",',
       '    "Content-Type": "application/json",',
       '}',
+      '',
+      '# ① 提交任务（文生视频）',
       'payload = {',
-      `    "model": "${ctx.modelName}",`,
+      `    "model": "${model}",`,
       `    "prompt": "${prompt}",`,
       '    "duration": 5,',
       '    "size": "480p",',
+      '    # 图生视频：加参考图链接（可多张）',
+      '    # "images": ["https://example.com/ref.png"],',
+      '    # 参考视频生视频：用 metadata.content 放视频链接',
+      '    # "metadata": {"content": [',
+      '    #     {"type": "video_url", "video_url": {"url": "https://example.com/ref.mp4"}, "role": "reference_video"}',
+      '    # ]},',
       '}',
+      'task = requests.post(BASE, headers=HEADERS, json=payload).json()',
+      'video_id = task["id"]',
       '',
-      'response = requests.post(url, headers=headers, json=payload)',
-      'print(response.json())',
+      '# ② 查询结果（轮询；status=completed 时取 metadata["url"]）',
+      'result = requests.get(f"{BASE}/{video_id}", headers=HEADERS).json()',
+      'print(result)',
+      '',
+      '# ③ 取消任务（可选）',
+      '# requests.post(f"{BASE}/{video_id}/cancel", headers=HEADERS)',
     ].join('\n')
   }
 
-  if (lang === 'typescript') {
-    return [
-      `const response = await fetch('${url}', {`,
-      `  method: 'POST',`,
-      `  headers: {`,
-      `    Authorization: \`Bearer \${process.env.${ctx.apiKeyEnv}}\`,`,
-      `    'Content-Type': 'application/json',`,
-      `  },`,
-      `  body: JSON.stringify({`,
-      `    model: '${ctx.modelName}',`,
-      `    prompt: '${prompt}',`,
-      `    duration: 5,`,
-      `    size: '480p',`,
-      `  }),`,
-      `})`,
-      '',
-      `const data = await response.json()`,
-      `console.log(data)`,
-    ].join('\n')
-  }
-
+  // typescript / javascript 共用同一段（仅注释语言不同时差异忽略）
   return [
-    `const response = await fetch('${url}', {`,
+    `const BASE = '${url}'`,
+    `const headers = {`,
+    `  Authorization: \`Bearer \${process.env.${key}}\`,`,
+    `  'Content-Type': 'application/json',`,
+    `}`,
+    '',
+    `// ① 提交任务（文生视频）`,
+    `const submit = await fetch(BASE, {`,
     `  method: 'POST',`,
-    `  headers: {`,
-    `    Authorization: \`Bearer \${process.env.${ctx.apiKeyEnv}}\`,`,
-    `    'Content-Type': 'application/json',`,
-    `  },`,
+    `  headers,`,
     `  body: JSON.stringify({`,
-    `    model: '${ctx.modelName}',`,
+    `    model: '${model}',`,
     `    prompt: '${prompt}',`,
     `    duration: 5,`,
     `    size: '480p',`,
+    `    // 图生视频：加参考图链接（可多张）`,
+    `    // images: ['https://example.com/ref.png'],`,
+    `    // 参考视频生视频：用 metadata.content 放视频链接`,
+    `    // metadata: { content: [`,
+    `    //   { type: 'video_url', video_url: { url: 'https://example.com/ref.mp4' }, role: 'reference_video' },`,
+    `    // ] },`,
     `  }),`,
     `})`,
+    `const { id } = await submit.json()`,
     '',
-    `const data = await response.json()`,
-    `console.log(data)`,
+    `// ② 查询结果（轮询；status=completed 时取 metadata.url）`,
+    `const result = await fetch(\`\${BASE}/\${id}\`, { headers })`,
+    `console.log(await result.json())`,
+    '',
+    `// ③ 取消任务（可选）`,
+    `// await fetch(\`\${BASE}/\${id}/cancel\`, { method: 'POST', headers })`,
   ].join('\n')
 }
 
