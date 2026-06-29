@@ -796,6 +796,30 @@ export const useLogsData = () => {
     await loadLogs(1, pageSize);
   };
 
+  const exportMonthlyReport = () => {
+    if (isAdminUser) {
+      return;
+    }
+    const { token_name, model_name, start_timestamp, end_timestamp, group } =
+      getFormValues();
+    const params = new URLSearchParams();
+    const localStartTimestamp = Date.parse(start_timestamp) / 1000;
+    const localEndTimestamp = Date.parse(end_timestamp) / 1000;
+    if (!Number.isNaN(localStartTimestamp)) {
+      params.set('start_timestamp', String(localStartTimestamp));
+    }
+    if (!Number.isNaN(localEndTimestamp)) {
+      params.set('end_timestamp', String(localEndTimestamp));
+    }
+    if (token_name) params.set('token_name', token_name);
+    if (model_name) params.set('model_name', model_name);
+    if (group) params.set('group', group);
+    const suffix = params.toString();
+    window.location.assign(
+      `/api/log/self/monthly_report${suffix ? `?${suffix}` : ''}`,
+    );
+  };
+
   // Copy text function
   const copyText = async (e, text) => {
     e.stopPropagation();
@@ -889,6 +913,7 @@ export const useLogsData = () => {
     refresh,
     copyText,
     handleEyeClick,
+    exportMonthlyReport,
     setLogsFormat,
     hasExpandableRows,
     setLogType,

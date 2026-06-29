@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -566,6 +567,92 @@ func SumUsedToken(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	}
 	tx.Where("type = ?", LogTypeConsume).Scan(&token)
 	return token
+}
+
+type MonthlyUsageReportRow struct {
+	Month            string `json:"month"`
+	ModelName        string `json:"model_name"`
+	RequestCount     int64  `json:"request_count"`
+	PromptTokens     int64  `json:"prompt_tokens"`
+	CompletionTokens int64  `json:"completion_tokens"`
+	TotalTokens      int64  `json:"total_tokens"`
+	Quota            int64  `json:"quota"`
+	MonthTotalQuota  int64  `json:"month_total_quota"`
+}
+
+func GetUserMonthlyUsageReport(userId int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, group string) ([]MonthlyUsageReportRow, error) {
+	type logUsageRow struct {
+		CreatedAt        int64
+		ModelName        string
+		Quota            int
+		PromptTokens     int
+		CompletionTokens int
+	}
+
+	tx := LOG_DB.Model(&Log{}).
+		Select("created_at, model_name, quota, prompt_tokens, completion_tokens").
+		Where("user_id = ? AND type = ?", userId, LogTypeConsume)
+
+	var err error
+	if tx, err = applyExplicitLogTextFilter(tx, "model_name", modelName); err != nil {
+		return nil, err
+	}
+	if tokenName != "" {
+		tx = tx.Where("token_name = ?", tokenName)
+	}
+	if group != "" {
+		tx = tx.Where(logGroupCol+" = ?", group)
+	}
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at <= ?", endTimestamp)
+	}
+
+	var rawRows []logUsageRow
+	if err := tx.Find(&rawRows).Error; err != nil {
+		common.SysError("failed to query monthly usage report: " + err.Error())
+		return nil, errors.New("查询月度用量报表失败")
+	}
+
+	byMonthModel := make(map[string]*MonthlyUsageReportRow)
+	monthTotals := make(map[string]int64)
+	for _, raw := range rawRows {
+		month := time.Unix(raw.CreatedAt, 0).Format("2006-01")
+		name := raw.ModelName
+		if name == "" {
+			name = "(unknown)"
+		}
+		key := month + "\x00" + name
+		row := byMonthModel[key]
+		if row == nil {
+			row = &MonthlyUsageReportRow{
+				Month:     month,
+				ModelName: name,
+			}
+			byMonthModel[key] = row
+		}
+		row.RequestCount++
+		row.PromptTokens += int64(raw.PromptTokens)
+		row.CompletionTokens += int64(raw.CompletionTokens)
+		row.TotalTokens += int64(raw.PromptTokens + raw.CompletionTokens)
+		row.Quota += int64(raw.Quota)
+		monthTotals[month] += int64(raw.Quota)
+	}
+
+	rows := make([]MonthlyUsageReportRow, 0, len(byMonthModel))
+	for _, row := range byMonthModel {
+		row.MonthTotalQuota = monthTotals[row.Month]
+		rows = append(rows, *row)
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].Month == rows[j].Month {
+			return rows[i].ModelName < rows[j].ModelName
+		}
+		return rows[i].Month < rows[j].Month
+	})
+	return rows, nil
 }
 
 func DeleteOldLog(ctx context.Context, targetTimestamp int64, limit int) (int64, error) {

@@ -1,10 +1,16 @@
 package controller
 
 import (
+	"fmt"
+	"html"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-gonic/gin"
@@ -148,6 +154,79 @@ func GetLogsSelfStat(c *gin.Context) {
 		},
 	})
 	return
+}
+
+func GetUserMonthlyUsageReport(c *gin.Context) {
+	userId := c.GetInt("id")
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	modelName := c.Query("model_name")
+	tokenName := c.Query("token_name")
+	group := c.Query("group")
+
+	if startTimestamp == 0 && endTimestamp == 0 {
+		now := time.Now()
+		startTimestamp = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).Unix()
+		endTimestamp = now.Add(time.Hour).Unix()
+	}
+	if startTimestamp != 0 && endTimestamp != 0 && endTimestamp < startTimestamp {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "结束时间不能早于开始时间",
+		})
+		return
+	}
+
+	rows, err := model.GetUserMonthlyUsageReport(userId, startTimestamp, endTimestamp, modelName, tokenName, group)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	var report strings.Builder
+	report.WriteString("\ufeff")
+	report.WriteString(`<!doctype html><html><head><meta charset="UTF-8"><style>table{border-collapse:collapse}th,td{border:1px solid #999;padding:6px 8px;mso-number-format:"\@";}th{background:#f2f3f5}</style></head><body>`)
+	report.WriteString("<table>")
+	report.WriteString("<thead><tr>")
+	for _, header := range []string{"月份", "模型", "请求数", "Prompt Tokens", "Completion Tokens", "总 Tokens", "消耗额度(quota)", "消耗金额", "当月消耗总额"} {
+		report.WriteString("<th>")
+		report.WriteString(html.EscapeString(header))
+		report.WriteString("</th>")
+	}
+	report.WriteString("</tr></thead><tbody>")
+	for _, row := range rows {
+		cells := []string{
+			row.Month,
+			row.ModelName,
+			strconv.FormatInt(row.RequestCount, 10),
+			strconv.FormatInt(row.PromptTokens, 10),
+			strconv.FormatInt(row.CompletionTokens, 10),
+			strconv.FormatInt(row.TotalTokens, 10),
+			strconv.FormatInt(row.Quota, 10),
+			formatReportQuota(row.Quota),
+			formatReportQuota(row.MonthTotalQuota),
+		}
+		report.WriteString("<tr>")
+		for _, cell := range cells {
+			report.WriteString("<td>")
+			report.WriteString(html.EscapeString(cell))
+			report.WriteString("</td>")
+		}
+		report.WriteString("</tr>")
+	}
+	report.WriteString("</tbody></table></body></html>")
+
+	filename := fmt.Sprintf("monthly-usage-report-%s.xls", time.Now().Format("20060102150405"))
+	c.Header("Content-Type", "application/vnd.ms-excel; charset=utf-8")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q; filename*=UTF-8''%s", filename, url.QueryEscape(filename)))
+	c.String(http.StatusOK, report.String())
+}
+
+func formatReportQuota(quota int64) string {
+	if quota > int64(^uint(0)>>1) {
+		return fmt.Sprintf("quota %d", quota)
+	}
+	return logger.FormatQuota(int(quota))
 }
 
 func DeleteHistoryLogs(c *gin.Context) {
