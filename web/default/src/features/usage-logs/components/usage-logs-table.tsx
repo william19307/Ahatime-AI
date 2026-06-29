@@ -38,6 +38,7 @@ import {
 import { useColumnsByCategory } from '../lib/columns'
 import { fetchLogsByCategory } from '../lib/utils'
 import type { LogCategory } from '../types'
+import { CommonLogsExportAction } from './common-logs-export-action'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
 import { TaskLogsFilterBar } from './task-logs-filter-bar'
 import { UsageLogsMobileList } from './usage-logs-mobile-card'
@@ -186,6 +187,13 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
         ) : (
           <TaskLogsFilterBar table={table} logCategory={logCategory} />
         )
+      }
+      afterTable={
+        isCommon && !isAdmin ? (
+          <div className='flex justify-end pt-1'>
+            <CommonLogsExportAction />
+          </div>
+        ) : undefined
       }
       renderRow={(row) => {
         const logType = (row.original as Record<string, unknown>).type as

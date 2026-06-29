@@ -18,8 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Tag, Space, Skeleton, Button } from '@douyinfe/semi-ui';
-import { IconDownload } from '@douyinfe/semi-icons';
+import { Tag, Space, Skeleton } from '@douyinfe/semi-ui';
 import { renderQuota } from '../../../helpers';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 import { useMinimumLoadingTime } from '../../../hooks/common/useMinimumLoadingTime';
@@ -30,8 +29,6 @@ const LogsActions = ({
   showStat,
   compactMode,
   setCompactMode,
-  isAdminUser,
-  exportMonthlyReport,
   t,
 }) => {
   const showSkeleton = useMinimumLoadingTime(loadingStat);
@@ -87,16 +84,6 @@ const LogsActions = ({
       </Skeleton>
 
       <Space>
-        {!isAdminUser && (
-          <Button
-            type='tertiary'
-            size='small'
-            icon={<IconDownload />}
-            onClick={exportMonthlyReport}
-          >
-            {t('导出当前筛选')}
-          </Button>
-        )}
         <CompactModeToggle
           compactMode={compactMode}
           setCompactMode={setCompactMode}

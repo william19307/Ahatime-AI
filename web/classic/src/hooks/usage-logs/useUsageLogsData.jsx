@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal } from '@douyinfe/semi-ui';
 import {
@@ -74,6 +74,7 @@ export const useLogsData = () => {
   const [logCount, setLogCount] = useState(0);
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [logType, setLogType] = useState(0);
+  const reportFilterRef = useRef(null);
 
   // User and admin
   const isAdminUser = isAdmin();
@@ -258,6 +259,19 @@ export const useLogsData = () => {
       group: formValues.group || '',
       request_id: formValues.request_id || '',
       logType: formValues.logType ? parseInt(formValues.logType) : 0,
+    };
+  };
+
+  const getReportFiltersFromForm = () => {
+    const { token_name, model_name, start_timestamp, end_timestamp, group } =
+      getFormValues();
+
+    return {
+      token_name,
+      model_name,
+      start_timestamp: Date.parse(start_timestamp) / 1000,
+      end_timestamp: Date.parse(end_timestamp) / 1000,
+      group,
     };
   };
 
@@ -751,6 +765,13 @@ export const useLogsData = () => {
 
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
+    const reportFiltersForLoad = {
+      token_name,
+      model_name,
+      start_timestamp: localStartTimestamp,
+      end_timestamp: localEndTimestamp,
+      group,
+    };
     if (isAdminUser) {
       url = `/api/log/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
     } else {
@@ -764,6 +785,9 @@ export const useLogsData = () => {
       setActivePage(data.page);
       setPageSize(data.page_size);
       setLogCount(data.total);
+      if (!isAdminUser) {
+        reportFilterRef.current = reportFiltersForLoad;
+      }
 
       setLogsFormat(newPageData);
     } else {
@@ -801,15 +825,13 @@ export const useLogsData = () => {
       return;
     }
     const { token_name, model_name, start_timestamp, end_timestamp, group } =
-      getFormValues();
+      reportFilterRef.current || getReportFiltersFromForm();
     const params = new URLSearchParams();
-    const localStartTimestamp = Date.parse(start_timestamp) / 1000;
-    const localEndTimestamp = Date.parse(end_timestamp) / 1000;
-    if (!Number.isNaN(localStartTimestamp)) {
-      params.set('start_timestamp', String(localStartTimestamp));
+    if (!Number.isNaN(start_timestamp)) {
+      params.set('start_timestamp', String(start_timestamp));
     }
-    if (!Number.isNaN(localEndTimestamp)) {
-      params.set('end_timestamp', String(localEndTimestamp));
+    if (!Number.isNaN(end_timestamp)) {
+      params.set('end_timestamp', String(end_timestamp));
     }
     if (token_name) params.set('token_name', token_name);
     if (model_name) params.set('model_name', model_name);

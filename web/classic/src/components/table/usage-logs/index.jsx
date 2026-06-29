@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { Button } from '@douyinfe/semi-ui';
+import { IconDownload } from '@douyinfe/semi-icons';
 import CardPro from '../../common/ui/CardPro';
 import LogsTable from './UsageLogsTable';
 import LogsActions from './UsageLogsActions';
@@ -33,6 +35,32 @@ import { createCardProPagination } from '../../../helpers/utils';
 const LogsPage = () => {
   const logsData = useLogsData();
   const isMobile = useIsMobile();
+  const pagination = createCardProPagination({
+    currentPage: logsData.activePage,
+    pageSize: logsData.pageSize,
+    total: logsData.logCount,
+    onPageChange: logsData.handlePageChange,
+    onPageSizeChange: logsData.handlePageSizeChange,
+    isMobile: isMobile,
+    t: logsData.t,
+  });
+  const paginationArea = (
+    <div
+      className={`flex w-full gap-2 ${isMobile ? 'flex-col items-center' : 'items-center justify-between'}`}
+    >
+      <div>{pagination}</div>
+      {!logsData.isAdminUser && (
+        <Button
+          type='tertiary'
+          size='small'
+          icon={<IconDownload />}
+          onClick={logsData.exportMonthlyReport}
+        >
+          {logsData.t('导出当前筛选')}
+        </Button>
+      )}
+    </div>
+  );
 
   return (
     <>
@@ -47,15 +75,7 @@ const LogsPage = () => {
         type='type2'
         statsArea={<LogsActions {...logsData} />}
         searchArea={<LogsFilters {...logsData} />}
-        paginationArea={createCardProPagination({
-          currentPage: logsData.activePage,
-          pageSize: logsData.pageSize,
-          total: logsData.logCount,
-          onPageChange: logsData.handlePageChange,
-          onPageSizeChange: logsData.handlePageSizeChange,
-          isMobile: isMobile,
-          t: logsData.t,
-        })}
+        paginationArea={paginationArea}
         t={logsData.t}
       >
         <LogsTable {...logsData} />
