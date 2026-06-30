@@ -428,36 +428,90 @@ function buildEmbeddingSample(lang: Lang, ctx: SampleContext): string {
 }
 
 function buildImageSample(lang: Lang, ctx: SampleContext): string {
-  const url = `${ctx.baseUrl}${ctx.endpointPath}`
+  const generationUrl = `${ctx.baseUrl}/v1/images/generations`
+  const editsUrl = `${ctx.baseUrl}/v1/images/edits`
   const prompt = 'A serene koi pond at sunset, ukiyo-e style.'
+  const editPrompt = '随意添加一朵红色玫瑰花'
+  const sizeOptions = [
+    '1024x1024',
+    '1024x1536',
+    '1536x1024',
+    '2048x1152',
+    '1152x2048',
+  ]
 
   if (lang === 'curl') {
-    const body = JSON.stringify(
-      { model: ctx.modelName, prompt, size: '1024x1024', n: 1 },
+    const generationBody = JSON.stringify(
+      {
+        model: ctx.modelName,
+        prompt,
+        size: '1024x1024',
+        n: 1,
+        response_format: 'url',
+      },
+      null,
+      2
+    )
+    const editBody = JSON.stringify(
+      {
+        model: ctx.modelName,
+        prompt: editPrompt,
+        images: [{ image_url: 'https://example.com/input.png' }],
+        size: '1024x1024',
+        n: 1,
+        output_format: 'png',
+      },
       null,
       2
     )
     return [
-      `curl ${url} \\`,
+      `# 可选 size：${sizeOptions.join('、')}`,
+      `# ① 图片生成`,
+      `curl ${generationUrl} \\`,
       `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
       `  -H "Content-Type: application/json" \\`,
-      `  -d '${body.replace(/\n/g, '\n     ')}'`,
+      `  -d '${generationBody.replace(/\n/g, '\n     ')}'`,
+      '',
+      `# ② 图片编辑：传入参考图 URL 后按 prompt 修改`,
+      `curl ${editsUrl} \\`,
+      `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
+      `  -H "Content-Type: application/json" \\`,
+      `  -d '${editBody.replace(/\n/g, '\n     ')}'`,
     ].join('\n')
   }
   if (lang === 'python') {
     return [
+      'import os',
+      'import requests',
       'from openai import OpenAI',
       '',
-      `client = OpenAI(base_url="${ctx.baseUrl}/v1", api_key="<YOUR_API_KEY>")`,
+      `API_KEY = os.getenv("${ctx.apiKeyEnv}", "<YOUR_API_KEY>")`,
+      `client = OpenAI(base_url="${ctx.baseUrl}/v1", api_key=API_KEY)`,
       '',
-      'response = client.images.generate(',
+      `# 可选 size：${sizeOptions.join('、')}`,
+      '# ① 图片生成',
+      'generated = client.images.generate(',
       `    model="${ctx.modelName}",`,
       `    prompt="${prompt}",`,
       `    size="1024x1024",`,
       `    n=1,`,
+      `    response_format="url",`,
       ')',
+      'print(generated.data[0].url)',
       '',
-      'print(response.data[0].url)',
+      '# ② 图片编辑：传入参考图 URL 后按 prompt 修改',
+      `edited = requests.post("${editsUrl}", headers={`,
+      '    "Authorization": f"Bearer {API_KEY}",',
+      '    "Content-Type": "application/json",',
+      '}, json={',
+      `    "model": "${ctx.modelName}",`,
+      `    "prompt": "${editPrompt}",`,
+      '    "images": [{"image_url": "https://example.com/input.png"}],',
+      '    "size": "1024x1024",',
+      '    "n": 1,',
+      '    "output_format": "png",',
+      '}).json()',
+      'print(edited["data"][0]["url"])',
     ].join('\n')
   }
   if (lang === 'typescript') {
@@ -469,18 +523,41 @@ function buildImageSample(lang: Lang, ctx: SampleContext): string {
       `  apiKey: process.env.${ctx.apiKeyEnv},`,
       `})`,
       '',
-      `const response = await client.images.generate({`,
+      `// 可选 size：${sizeOptions.join('、')}`,
+      `// ① 图片生成`,
+      `const generated = await client.images.generate({`,
       `  model: '${ctx.modelName}',`,
       `  prompt: '${prompt}',`,
       `  size: '1024x1024',`,
       `  n: 1,`,
+      `  response_format: 'url',`,
       `})`,
+      `console.log(generated.data[0].url)`,
       '',
-      `console.log(response.data[0].url)`,
+      `// ② 图片编辑：传入参考图 URL 后按 prompt 修改`,
+      `const editedResponse = await fetch('${editsUrl}', {`,
+      `  method: 'POST',`,
+      `  headers: {`,
+      `    Authorization: \`Bearer \${process.env.${ctx.apiKeyEnv}}\`,`,
+      `    'Content-Type': 'application/json',`,
+      `  },`,
+      `  body: JSON.stringify({`,
+      `    model: '${ctx.modelName}',`,
+      `    prompt: '${editPrompt}',`,
+      `    images: [{ image_url: 'https://example.com/input.png' }],`,
+      `    size: '1024x1024',`,
+      `    n: 1,`,
+      `    output_format: 'png',`,
+      `  }),`,
+      `})`,
+      `const edited = await editedResponse.json()`,
+      `console.log(edited.data[0].url)`,
     ].join('\n')
   }
   return [
-    `const response = await fetch('${url}', {`,
+    `// 可选 size：${sizeOptions.join('、')}`,
+    `// ① 图片生成`,
+    `const generatedResponse = await fetch('${generationUrl}', {`,
     `  method: 'POST',`,
     `  headers: {`,
     `    Authorization: \`Bearer \${process.env.${ctx.apiKeyEnv}}\`,`,
@@ -491,11 +568,30 @@ function buildImageSample(lang: Lang, ctx: SampleContext): string {
     `    prompt: '${prompt}',`,
     `    size: '1024x1024',`,
     `    n: 1,`,
+    `    response_format: 'url',`,
     `  }),`,
     `})`,
+    `const generated = await generatedResponse.json()`,
+    `console.log(generated.data[0].url)`,
     '',
-    `const data = await response.json()`,
-    `console.log(data.data[0].url)`,
+    `// ② 图片编辑：传入参考图 URL 后按 prompt 修改`,
+    `const editedResponse = await fetch('${editsUrl}', {`,
+    `  method: 'POST',`,
+    `  headers: {`,
+    `    Authorization: \`Bearer \${process.env.${ctx.apiKeyEnv}}\`,`,
+    `    'Content-Type': 'application/json',`,
+    `  },`,
+    `  body: JSON.stringify({`,
+    `    model: '${ctx.modelName}',`,
+    `    prompt: '${editPrompt}',`,
+    `    images: [{ image_url: 'https://example.com/input.png' }],`,
+    `    size: '1024x1024',`,
+    `    n: 1,`,
+    `    output_format: 'png',`,
+    `  }),`,
+    `})`,
+    `const edited = await editedResponse.json()`,
+    `console.log(edited.data[0].url)`,
   ].join('\n')
 }
 
