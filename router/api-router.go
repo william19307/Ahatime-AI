@@ -348,6 +348,24 @@ func SetApiRouter(router *gin.Engine) {
 			taskRoute.GET("/", middleware.AdminAuth(), controller.GetAllTask)
 		}
 
+		seedanceRoute := apiRouter.Group("/seedance")
+		{
+			seedanceRoute.GET("/files/public/:token", controller.ServeSeedancePublicFile)
+			seedanceAuthRoute := seedanceRoute.Group("")
+			seedanceAuthRoute.Use(middleware.UserAuth())
+			{
+				seedanceAuthRoute.GET("/groups", controller.ListSeedanceAssetGroups)
+				seedanceAuthRoute.POST("/groups", controller.CreateSeedanceAssetGroup)
+				seedanceAuthRoute.PUT("/groups/:id", controller.UpdateSeedanceAssetGroup)
+				seedanceAuthRoute.GET("/assets", controller.ListSeedanceAssets)
+				seedanceAuthRoute.POST("/assets", controller.CreateSeedanceAsset)
+				seedanceAuthRoute.GET("/assets/:id", controller.GetSeedanceAsset)
+				seedanceAuthRoute.PUT("/assets/:id", controller.UpdateSeedanceAsset)
+				seedanceAuthRoute.DELETE("/assets/:id", controller.DeleteSeedanceAsset)
+				seedanceAuthRoute.POST("/uploads", controller.UploadSeedanceAssetFile)
+			}
+		}
+
 		vendorRoute := apiRouter.Group("/vendors")
 		vendorRoute.Use(middleware.AdminAuth())
 		{

@@ -129,12 +129,77 @@ func (a *TaskAdaptor) getPayload(c *gin.Context) (*requestPayload, error) {
 	if err != nil {
 		return nil, err
 	}
+	for i, imgURL := range req.Images {
+		resolved, resolveErr := resolveSeedanceMediaURL(c, imgURL)
+		if resolveErr != nil {
+			return nil, resolveErr
+		}
+		req.Images[i] = resolved
+	}
 	body, err := a.convertToRequestPayload(&req)
 	if err != nil {
 		return nil, err
 	}
+	if err := resolvePayloadSeedanceAssets(c, body); err != nil {
+		return nil, err
+	}
 	a.cachedPayload = body
 	return body, nil
+}
+
+const seedanceAssetURLPrefix = "seedance_asset://"
+
+func resolveSeedanceMediaURL(c *gin.Context, rawURL string) (string, error) {
+	rawURL = strings.TrimSpace(rawURL)
+	if !strings.HasPrefix(rawURL, seedanceAssetURLPrefix) {
+		return rawURL, nil
+	}
+	userId := c.GetInt("id")
+	if userId <= 0 {
+		return "", errors.New("seedance asset reference requires authenticated user")
+	}
+	idStr := strings.TrimPrefix(rawURL, seedanceAssetURLPrefix)
+	localID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || localID <= 0 {
+		return "", fmt.Errorf("invalid seedance asset reference: %s", rawURL)
+	}
+	return service.NewSeedanceAssetService().ResolveAssetURLForRelay(userId, localID)
+}
+
+func resolvePayloadSeedanceAssets(c *gin.Context, payload *requestPayload) error {
+	if payload == nil {
+		return nil
+	}
+	for i := range payload.Content {
+		item := &payload.Content[i]
+		switch item.Type {
+		case "image_url":
+			if item.ImageURL != nil {
+				resolved, err := resolveSeedanceMediaURL(c, item.ImageURL.URL)
+				if err != nil {
+					return err
+				}
+				item.ImageURL.URL = resolved
+			}
+		case "video_url":
+			if item.VideoURL != nil {
+				resolved, err := resolveSeedanceMediaURL(c, item.VideoURL.URL)
+				if err != nil {
+					return err
+				}
+				item.VideoURL.URL = resolved
+			}
+		case "audio_url":
+			if item.AudioURL != nil {
+				resolved, err := resolveSeedanceMediaURL(c, item.AudioURL.URL)
+				if err != nil {
+					return err
+				}
+				item.AudioURL.URL = resolved
+			}
+		}
+	}
+	return nil
 }
 
 // selectPlugin 按内容选择京东插件端点:

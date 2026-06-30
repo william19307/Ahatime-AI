@@ -21,6 +21,7 @@ import {
   Box,
   CreditCard,
   FileText,
+  Film,
   FlaskConical,
   Key,
   LayoutDashboard,
@@ -55,6 +56,11 @@ export function useSidebarData(): SidebarData {
             title: t('Playground'),
             url: '/playground',
             icon: FlaskConical,
+          },
+          {
+            title: t('Seedance Assets'),
+            url: '/seedance-assets',
+            icon: Film,
           },
           {
             title: t('Chat'),
