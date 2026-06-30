@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/dify"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/jdgemini"
+	"github.com/QuantumNous/new-api/relay/channel/jdimage"
 	"github.com/QuantumNous/new-api/relay/channel/jimeng"
 	"github.com/QuantumNous/new-api/relay/channel/jina"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
@@ -124,6 +125,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &codex.Adaptor{}
 	case constant.APITypeJDGemini:
 		return &jdgemini.Adaptor{}
+	case constant.APITypeJDImage:
+		return &jdimage.Adaptor{}
 	}
 	return nil
 }

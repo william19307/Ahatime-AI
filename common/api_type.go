@@ -77,6 +77,8 @@ func ChannelType2APIType(channelType int) (int, bool) {
 		apiType = constant.APITypeCodex
 	case constant.ChannelTypeJDGemini:
 		apiType = constant.APITypeJDGemini
+	case constant.ChannelTypeJDImage:
+		apiType = constant.APITypeJDImage
 	}
 	if apiType == -1 {
 		return constant.APITypeOpenAI, false

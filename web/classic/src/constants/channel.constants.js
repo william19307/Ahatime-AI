@@ -199,6 +199,11 @@ export const CHANNEL_OPTIONS = [
     color: 'blue',
     label: 'JD Gemini 推理',
   },
+  {
+    value: 60,
+    color: 'blue',
+    label: 'JD Image',
+  },
 ];
 
 // Channel types that support upstream model list fetching in UI.
