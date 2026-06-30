@@ -194,6 +194,11 @@ export const CHANNEL_OPTIONS = [
     color: 'blue',
     label: '京东Seedance',
   },
+  {
+    value: 59,
+    color: 'blue',
+    label: 'JD Gemini 推理',
+  },
 ];
 
 // Channel types that support upstream model list fetching in UI.

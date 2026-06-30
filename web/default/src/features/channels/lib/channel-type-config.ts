@@ -92,6 +92,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'gemini-pro,gemini-pro-vision',
     },
   },
+  59: {
+    id: 59,
+    name: CHANNEL_TYPES[59],
+    icon: 'google',
+    defaultBaseUrl: 'https://agentrs.jd.com/api/saas/openai-u',
+    hints: {
+      baseUrl: 'Default: https://agentrs.jd.com/api/saas/openai-u',
+      key: 'JoyAgent resource center API KEY',
+      models: 'gemini-2.5-pro,gemini-3.1-pro-preview',
+    },
+  },
   41: {
     id: 41,
     name: CHANNEL_TYPES[41],

@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/deepseek"
 	"github.com/QuantumNous/new-api/relay/channel/dify"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
+	"github.com/QuantumNous/new-api/relay/channel/jdgemini"
 	"github.com/QuantumNous/new-api/relay/channel/jimeng"
 	"github.com/QuantumNous/new-api/relay/channel/jina"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
@@ -32,9 +33,9 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/submodel"
 	taskali "github.com/QuantumNous/new-api/relay/channel/task/ali"
 	taskdoubao "github.com/QuantumNous/new-api/relay/channel/task/doubao"
-	taskjdseedance "github.com/QuantumNous/new-api/relay/channel/task/jdseedance"
 	taskGemini "github.com/QuantumNous/new-api/relay/channel/task/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/task/hailuo"
+	taskjdseedance "github.com/QuantumNous/new-api/relay/channel/task/jdseedance"
 	taskjimeng "github.com/QuantumNous/new-api/relay/channel/task/jimeng"
 	"github.com/QuantumNous/new-api/relay/channel/task/kling"
 	tasksora "github.com/QuantumNous/new-api/relay/channel/task/sora"
@@ -121,6 +122,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &replicate.Adaptor{}
 	case constant.APITypeCodex:
 		return &codex.Adaptor{}
+	case constant.APITypeJDGemini:
+		return &jdgemini.Adaptor{}
 	}
 	return nil
 }
