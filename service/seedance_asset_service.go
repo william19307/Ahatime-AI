@@ -70,6 +70,8 @@ func seedanceMaxUploadBytes() int64 {
 }
 
 func (s *SeedanceAssetService) resolveClient(userId int) (SeedanceAssetUpstream, error) {
+	// Credential model: platform JDSeedance channel Key (admin-configured), not per-user upstream keys.
+	// User isolation is enforced by Ahatime user_id + local DB ownership, not by separate JoyAgent accounts.
 	user, err := model.GetUserById(userId, false)
 	if err != nil {
 		return nil, err
