@@ -48,6 +48,7 @@ const routerMap = {
   models: '/console/models',
   deployment: '/console/deployment',
   playground: '/console/playground',
+  seedance_assets: '/console/seedance-assets',
   personal: '/console/personal',
 };
 
@@ -206,6 +207,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('操练场'),
         itemKey: 'playground',
         to: '/playground',
+      },
+      {
+        text: t('Seedance Assets'),
+        itemKey: 'seedance_assets',
+        to: '/seedance-assets',
       },
       {
         text: t('聊天'),

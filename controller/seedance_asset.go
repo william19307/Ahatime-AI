@@ -24,6 +24,12 @@ func seedanceAssetError(c *gin.Context, err error) {
 		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": err.Error()})
 	case errors.Is(err, service.ErrSeedanceChannelNotFound):
 		common.ApiErrorMsg(c, "No enabled JDSeedance channel configured for your group")
+	case errors.Is(err, service.ErrSeedanceUnsupportedMIME):
+		common.ApiErrorMsg(c, "Unsupported upload file type")
+	case errors.Is(err, service.ErrSeedanceURLUnreachable):
+		common.ApiErrorMsg(c, "Asset URL is not reachable")
+	case errors.Is(err, service.ErrSeedanceUpstreamSyncFailed):
+		common.ApiErrorMsg(c, "Failed to sync asset status from upstream")
 	default:
 		common.ApiError(c, err)
 	}
@@ -221,12 +227,12 @@ func UploadSeedanceAssetFile(c *gin.Context) {
 func ServeSeedancePublicFile(c *gin.Context) {
 	token := strings.TrimSpace(c.Param("token"))
 	if token == "" {
-		c.Status(http.StatusNotFound)
+		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
 	path, mimeType, err := seedanceAssetService.ServePublicFile(token)
 	if err != nil {
-		c.Status(http.StatusNotFound)
+		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
 	if mimeType != "" {

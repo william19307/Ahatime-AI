@@ -14,12 +14,14 @@ import {
   createSeedanceAsset,
   createSeedanceGroup,
   deleteSeedanceAsset,
+  getSeedanceAsset,
   listSeedanceAssets,
   listSeedanceGroups,
   updateSeedanceAsset,
   updateSeedanceGroup,
   uploadSeedanceFile,
 } from '../api'
+import { useDebouncedValue } from './use-debounced-value'
 
 export function useSeedanceGroups() {
   return useQuery({
@@ -33,12 +35,13 @@ export function useSeedanceGroups() {
 }
 
 export function useSeedanceAssets(groupId?: number, keyword?: string) {
+  const debouncedKeyword = useDebouncedValue(keyword ?? '', 300)
   return useQuery({
-    queryKey: ['seedance-assets', groupId, keyword],
+    queryKey: ['seedance-assets', groupId, debouncedKeyword],
     queryFn: async () => {
       const res = await listSeedanceAssets({
         group_id: groupId,
-        keyword,
+        keyword: debouncedKeyword || undefined,
         size: 50,
       })
       if (!res.success) throw new Error(res.message)
@@ -130,6 +133,19 @@ export function useSeedanceAssetMutations() {
     onError: (err: Error) => toast.error(err.message),
   })
 
+  const syncAsset = useMutation({
+    mutationFn: (id: number) => getSeedanceAsset(id, true),
+    onSuccess: async (res) => {
+      if (!res.success) {
+        toast.error(res.message)
+        return
+      }
+      toast.success(t('Asset synced from upstream'))
+      await invalidate()
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
   const uploadFile = useMutation({
     mutationFn: uploadSeedanceFile,
     onError: (err: Error) => toast.error(err.message),
@@ -141,6 +157,7 @@ export function useSeedanceAssetMutations() {
     createAsset,
     updateAsset,
     removeAsset,
+    syncAsset,
     uploadFile,
   }
 }

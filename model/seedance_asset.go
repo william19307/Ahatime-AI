@@ -30,17 +30,18 @@ type SeedanceAssetGroup struct {
 }
 
 type SeedanceAsset struct {
-	Id         int64  `json:"id" gorm:"primaryKey;autoIncrement"`
-	UserId     int    `json:"user_id" gorm:"index;not null"`
-	GroupId    int64  `json:"group_id" gorm:"index;not null"`
-	UpstreamId string `json:"upstream_id" gorm:"type:varchar(128);uniqueIndex;not null"`
-	Name       string `json:"name" gorm:"type:varchar(64)"`
-	AssetType  string `json:"asset_type" gorm:"type:varchar(64);not null"`
-	SourceUrl  string `json:"source_url" gorm:"type:text"`
-	PublicUrl  string `json:"public_url" gorm:"type:text"`
-	Status     string `json:"status" gorm:"type:varchar(32)"`
-	CreatedAt  int64  `json:"created_at" gorm:"bigint;not null"`
-	UpdatedAt  int64  `json:"updated_at" gorm:"bigint;not null"`
+	Id         int64          `json:"id" gorm:"primaryKey;autoIncrement"`
+	UserId     int            `json:"user_id" gorm:"index;not null"`
+	GroupId    int64          `json:"group_id" gorm:"index;not null"`
+	UpstreamId string         `json:"upstream_id" gorm:"type:varchar(128);uniqueIndex;not null"`
+	Name       string         `json:"name" gorm:"type:varchar(64)"`
+	AssetType  string         `json:"asset_type" gorm:"type:varchar(64);not null"`
+	SourceUrl  string         `json:"source_url" gorm:"type:text"`
+	PublicUrl  string         `json:"public_url" gorm:"type:text"`
+	Status     string         `json:"status" gorm:"type:varchar(32)"`
+	CreatedAt  int64          `json:"created_at" gorm:"bigint;not null"`
+	UpdatedAt  int64          `json:"updated_at" gorm:"bigint;not null"`
+	DeletedAt  gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
 type SeedanceUpload struct {
@@ -265,6 +266,34 @@ func GetSeedanceUploadByToken(token string) (*SeedanceUpload, error) {
 		return nil, err
 	}
 	return &upload, nil
+}
+
+func ListExpiredSeedanceUploads(beforeUnix int64, limit int) ([]SeedanceUpload, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	var uploads []SeedanceUpload
+	err := DB.Where("expires_at < ?", beforeUnix).
+		Order("expires_at ASC").
+		Limit(limit).
+		Find(&uploads).Error
+	return uploads, err
+}
+
+func DeleteSeedanceUploadByID(id int64) error {
+	return DB.Where("id = ?", id).Delete(&SeedanceUpload{}).Error
+}
+
+func ListSeedanceAssetsPendingSync(limit int) ([]SeedanceAsset, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	var assets []SeedanceAsset
+	err := DB.Where("status = ? OR public_url = '' OR public_url IS NULL", "pending").
+		Order("updated_at ASC").
+		Limit(limit).
+		Find(&assets).Error
+	return assets, err
 }
 
 func GetJDSeedanceChannel(userGroup string) (*Channel, error) {

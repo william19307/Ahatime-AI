@@ -46,6 +46,14 @@ export async function updateSeedanceGroup(
   return res.data
 }
 
+export async function getSeedanceAsset(id: number, sync = false) {
+  const query = sync ? '?sync=true' : ''
+  const res = await api.get<ApiResponse<SeedanceAsset>>(
+    `/api/seedance/assets/${id}${query}`
+  )
+  return res.data
+}
+
 export async function listSeedanceAssets(params: {
   page?: number
   size?: number

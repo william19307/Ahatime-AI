@@ -2,7 +2,10 @@ package service
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -113,7 +116,7 @@ func setupSeedanceServiceTestDB(t *testing.T) {
 
 func newTestSeedanceService(mock *mockSeedanceUpstream) *SeedanceAssetService {
 	svc := NewSeedanceAssetService()
-	svc.newClient = func(baseURL, apiKey string) SeedanceAssetUpstream {
+	svc.NewClient = func(baseURL, apiKey string) SeedanceAssetUpstream {
 		return mock
 	}
 	return svc
@@ -123,6 +126,10 @@ func TestSeedanceAssetIsolationBetweenUsers(t *testing.T) {
 	setupSeedanceServiceTestDB(t)
 	mock := newMockSeedanceUpstream()
 	svc := newTestSeedanceService(mock)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
 
 	groupA, err := svc.CreateGroup(1, "group-a", "", "AIGC", true)
 	if err != nil {
@@ -130,7 +137,7 @@ func TestSeedanceAssetIsolationBetweenUsers(t *testing.T) {
 	}
 	assetA, err := svc.CreateAsset(1, CreateSeedanceAssetInput{
 		GroupID:   groupA.Id,
-		URL:       "https://example.com/a.jpg",
+		URL:       server.URL + "/a.jpg",
 		AssetType: "image",
 		Name:      "asset-a",
 	}, "https://api.example.com")
@@ -172,18 +179,38 @@ func TestSeedanceAssetIsolationBetweenUsers(t *testing.T) {
 	}
 }
 
+func TestServePublicFileExpiredUpload(t *testing.T) {
+	setupSeedanceServiceTestDB(t)
+	svc := NewSeedanceAssetService()
+	upload := &model.SeedanceUpload{
+		UserId: 1, FileName: "a.png", MimeType: "image/png", Size: 1,
+		StoragePath: "/tmp/missing-seedance-file", SignedToken: "expired-token",
+		ExpiresAt: time.Now().Unix() - 3600,
+	}
+	if err := model.CreateSeedanceUpload(upload); err != nil {
+		t.Fatalf("create upload: %v", err)
+	}
+	if _, _, err := svc.ServePublicFile("expired-token"); err == nil {
+		t.Fatal("expected expired upload error")
+	}
+}
+
 func TestSeedanceListAssetsScopedByUser(t *testing.T) {
 	setupSeedanceServiceTestDB(t)
 	mock := newMockSeedanceUpstream()
 	svc := newTestSeedanceService(mock)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
 
 	groupA, _ := svc.CreateGroup(1, "group-a", "", "AIGC", true)
 	groupB, _ := svc.CreateGroup(2, "group-b", "", "AIGC", true)
 	_, _ = svc.CreateAsset(1, CreateSeedanceAssetInput{
-		GroupID: groupA.Id, URL: "https://example.com/1.jpg", AssetType: "image", Name: "one",
+		GroupID: groupA.Id, URL: server.URL + "/1.jpg", AssetType: "image", Name: "one",
 	}, "https://api.example.com")
 	_, _ = svc.CreateAsset(2, CreateSeedanceAssetInput{
-		GroupID: groupB.Id, URL: "https://example.com/2.jpg", AssetType: "image", Name: "two",
+		GroupID: groupB.Id, URL: server.URL + "/2.jpg", AssetType: "image", Name: "two",
 	}, "https://api.example.com")
 
 	assetsA, totalA, err := svc.ListAssets(1, model.SeedanceAssetQuery{}, 0, 20)

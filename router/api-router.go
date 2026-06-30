@@ -350,7 +350,7 @@ func SetApiRouter(router *gin.Engine) {
 
 		seedanceRoute := apiRouter.Group("/seedance")
 		{
-			seedanceRoute.GET("/files/public/:token", controller.ServeSeedancePublicFile)
+			seedanceRoute.GET("/files/public/:token", middleware.CriticalRateLimit(), controller.ServeSeedancePublicFile)
 			seedanceAuthRoute := seedanceRoute.Group("")
 			seedanceAuthRoute.Use(middleware.UserAuth())
 			{

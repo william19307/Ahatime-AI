@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,8 +17,9 @@ import (
 )
 
 var (
-	ErrSeedanceForbidden       = errors.New("forbidden")
-	ErrSeedanceChannelNotFound = errors.New("no enabled JDSeedance channel configured")
+	ErrSeedanceForbidden          = errors.New("forbidden")
+	ErrSeedanceChannelNotFound    = errors.New("no enabled JDSeedance channel configured")
+	ErrSeedanceUpstreamSyncFailed = errors.New("failed to sync asset from upstream")
 )
 
 type SeedanceAssetUpstream interface {
@@ -32,12 +32,12 @@ type SeedanceAssetUpstream interface {
 }
 
 type SeedanceAssetService struct {
-	newClient func(baseURL, apiKey string) SeedanceAssetUpstream
+	NewClient func(baseURL, apiKey string) SeedanceAssetUpstream
 }
 
 func NewSeedanceAssetService() *SeedanceAssetService {
 	return &SeedanceAssetService{
-		newClient: func(baseURL, apiKey string) SeedanceAssetUpstream {
+		NewClient: func(baseURL, apiKey string) SeedanceAssetUpstream {
 			return NewSeedanceAssetClient(baseURL, apiKey)
 		},
 	}
@@ -82,7 +82,7 @@ func (s *SeedanceAssetService) resolveClient(userId int) (SeedanceAssetUpstream,
 	if channel.BaseURL != nil && strings.TrimSpace(*channel.BaseURL) != "" {
 		baseURL = strings.TrimSpace(*channel.BaseURL)
 	}
-	return s.newClient(baseURL, channel.Key), nil
+	return s.NewClient(baseURL, channel.Key), nil
 }
 
 func (s *SeedanceAssetService) EnsureDefaultGroup(userId int) (*model.SeedanceAssetGroup, error) {
@@ -138,8 +138,14 @@ func (s *SeedanceAssetService) CreateGroup(userId int, name, description, groupT
 }
 
 func (s *SeedanceAssetService) ListGroups(userId, offset, limit int) ([]model.SeedanceAssetGroup, int64, error) {
-	if _, err := s.EnsureDefaultGroup(userId); err != nil && !errors.Is(err, ErrSeedanceChannelNotFound) {
+	count, err := model.CountSeedanceAssetGroups(userId)
+	if err != nil {
 		return nil, 0, err
+	}
+	if count == 0 {
+		if _, err := s.EnsureDefaultGroup(userId); err != nil {
+			return nil, 0, err
+		}
 	}
 	return model.ListSeedanceAssetGroups(userId, offset, limit)
 }
@@ -182,11 +188,11 @@ func (s *SeedanceAssetService) GetAsset(userId int, assetID int64, sync bool) (*
 	}
 	client, err := s.resolveClient(userId)
 	if err != nil {
-		return asset, nil
+		return nil, err
 	}
 	upstream, err := client.GetAsset(asset.UpstreamId)
 	if err != nil {
-		return asset, nil
+		return nil, fmt.Errorf("%w: %v", ErrSeedanceUpstreamSyncFailed, err)
 	}
 	_ = model.UpdateSeedanceAssetSyncFields(userId, assetID, upstream.URL, upstream.Status)
 	asset.PublicUrl = upstream.URL
@@ -226,6 +232,11 @@ func (s *SeedanceAssetService) CreateAsset(userId int, input CreateSeedanceAsset
 	}
 	if assetURL == "" {
 		return nil, errors.New("asset url or upload_id is required")
+	}
+	if input.UploadID <= 0 {
+		if err := validateSeedanceAssetURLReachable(assetURL); err != nil {
+			return nil, err
+		}
 	}
 	assetType := strings.TrimSpace(input.AssetType)
 	if assetType == "" {
@@ -341,11 +352,17 @@ func (s *SeedanceAssetService) UploadFile(userId int, header *multipart.FileHead
 		return nil, "", err
 	}
 
+	mimeType, err := detectSeedanceFileMIME(storagePath, header.Header.Get("Content-Type"))
+	if err != nil {
+		_ = os.Remove(storagePath)
+		return nil, "", err
+	}
+
 	expiresAt := time.Now().Unix() + int64(seedanceFileTokenTTL())
 	upload := &model.SeedanceUpload{
 		UserId:      userId,
 		FileName:    safeName,
-		MimeType:    header.Header.Get("Content-Type"),
+		MimeType:    mimeType,
 		Size:        written,
 		StoragePath: storagePath,
 		SignedToken: token,
@@ -373,9 +390,12 @@ func (s *SeedanceAssetService) ServePublicFile(token string) (string, string, er
 	if _, err := os.Stat(upload.StoragePath); err != nil {
 		return "", "", model.ErrSeedanceUploadNotFound
 	}
-	mimeType := upload.MimeType
-	if mimeType == "" {
-		mimeType = http.DetectContentType([]byte{})
+	mimeType, err := detectSeedanceFileMIME(upload.StoragePath, upload.MimeType)
+	if err != nil {
+		mimeType = normalizeSeedanceMIME(upload.MimeType)
+		if mimeType == "" {
+			mimeType = "application/octet-stream"
+		}
 	}
 	return upload.StoragePath, mimeType, nil
 }
