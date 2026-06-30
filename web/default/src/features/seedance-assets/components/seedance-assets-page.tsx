@@ -28,7 +28,7 @@ import {
   useSeedanceAssetMutations,
   useSeedanceAssets,
   useSeedanceGroups,
-} from './hooks/use-seedance-assets'
+} from '../hooks/use-seedance-assets'
 
 export function SeedanceAssetsPage() {
   const { t } = useTranslation()
