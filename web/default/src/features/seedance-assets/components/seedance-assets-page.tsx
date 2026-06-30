@@ -44,15 +44,14 @@ export function SeedanceAssetsPage() {
   const [uploadId, setUploadId] = useState<number | undefined>()
 
   const groupsQuery = useSeedanceGroups()
-  const assetsQuery = useSeedanceAssets(selectedGroupId, keyword)
-  const mutations = useSeedanceAssetMutations()
-
   const activeGroupId = useMemo(() => {
     if (selectedGroupId) return selectedGroupId
     const groups = groupsQuery.data ?? []
     const defaultGroup = groups.find((g) => g.is_default) ?? groups[0]
     return defaultGroup?.id
   }, [groupsQuery.data, selectedGroupId])
+  const assetsQuery = useSeedanceAssets(activeGroupId, keyword)
+  const mutations = useSeedanceAssetMutations()
 
   const handleCreateGroup = async () => {
     await mutations.createGroup.mutateAsync({
