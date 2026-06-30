@@ -56,7 +56,7 @@ const LogsPage = () => {
           icon={<IconDownload />}
           onClick={logsData.exportMonthlyReport}
         >
-          {logsData.t('导出当前筛选')}
+          {logsData.t('导出数据')}
         </Button>
       )}
     </div>

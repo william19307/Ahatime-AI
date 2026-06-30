@@ -109,7 +109,7 @@ export function CommonLogsExportAction() {
       className='gap-1.5'
     >
       <Download className='size-3.5' />
-      {exporting ? t('导出中...') : t('导出当前筛选')}
+      {exporting ? t('导出中...') : t('导出数据')}
     </Button>
   )
 }
