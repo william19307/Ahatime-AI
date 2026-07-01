@@ -48,53 +48,55 @@ export function SeedanceAssetsPage() {
   const mutations = useSeedanceAssetMutations()
 
   return (
-    <SectionPageLayout fixedContent>
-      <SectionPageLayout.Title>{t('Seedance Assets')}</SectionPageLayout.Title>
-      <SectionPageLayout.Actions>
-        <Button variant='outline' onClick={() => setGroupDialogOpen(true)}>
-          <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />
-          {t('New asset group')}
-        </Button>
-        <Button onClick={() => setAssetDialogOpen(true)} disabled={!activeGroupId}>
-          <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
-          {t('Add asset')}
-        </Button>
-      </SectionPageLayout.Actions>
-      <SectionPageLayout.Content>
-        <div className='flex h-full min-h-[480px] gap-4'>
-          <AssetGroupList
-            groups={groupsQuery.data ?? []}
-            activeGroupId={activeGroupId}
-            isLoading={groupsQuery.isLoading}
-            onSelect={setSelectedGroupId}
-            onEdit={setEditGroup}
-          />
+    <>
+      <SectionPageLayout fixedContent>
+        <SectionPageLayout.Title>{t('Seedance Assets')}</SectionPageLayout.Title>
+        <SectionPageLayout.Actions>
+          <Button variant='outline' onClick={() => setGroupDialogOpen(true)}>
+            <HugeiconsIcon icon={FolderAddIcon} strokeWidth={2} />
+            {t('New asset group')}
+          </Button>
+          <Button onClick={() => setAssetDialogOpen(true)} disabled={!activeGroupId}>
+            <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
+            {t('Add asset')}
+          </Button>
+        </SectionPageLayout.Actions>
+        <SectionPageLayout.Content>
+          <div className='flex h-full min-h-[480px] gap-4'>
+            <AssetGroupList
+              groups={groupsQuery.data ?? []}
+              activeGroupId={activeGroupId}
+              isLoading={groupsQuery.isLoading}
+              onSelect={setSelectedGroupId}
+              onEdit={setEditGroup}
+            />
 
-          <div className='min-w-0 flex-1'>
-            <div className='mb-4 flex items-center gap-2'>
-              <Input
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-                placeholder={t('Search assets by name')}
-                className='max-w-sm'
+            <div className='min-w-0 flex-1'>
+              <div className='mb-4 flex items-center gap-2'>
+                <Input
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  placeholder={t('Search assets by name')}
+                  className='max-w-sm'
+                />
+              </div>
+
+              <AssetGrid
+                assets={assetsQuery.data?.items ?? []}
+                isLoading={assetsQuery.isLoading}
+                syncingAssetId={
+                  mutations.syncAsset.isPending
+                    ? mutations.syncAsset.variables
+                    : undefined
+                }
+                onEdit={setEditAsset}
+                onDelete={setDeleteAsset}
+                onSync={(asset) => mutations.syncAsset.mutate(asset.id)}
               />
             </div>
-
-            <AssetGrid
-              assets={assetsQuery.data?.items ?? []}
-              isLoading={assetsQuery.isLoading}
-              syncingAssetId={
-                mutations.syncAsset.isPending
-                  ? mutations.syncAsset.variables
-                  : undefined
-              }
-              onEdit={setEditAsset}
-              onDelete={setDeleteAsset}
-              onSync={(asset) => mutations.syncAsset.mutate(asset.id)}
-            />
           </div>
-        </div>
-      </SectionPageLayout.Content>
+        </SectionPageLayout.Content>
+      </SectionPageLayout>
 
       <CreateGroupDialog
         open={groupDialogOpen}
@@ -182,6 +184,6 @@ export function SeedanceAssetsPage() {
           })
         }}
       />
-    </SectionPageLayout>
+    </>
   )
 }
