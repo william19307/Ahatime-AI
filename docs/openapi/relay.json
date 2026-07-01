@@ -1167,7 +1167,7 @@
       "post": {
         "summary": "创建视频生成任务",
         "deprecated": false,
-        "description": "提交视频生成任务，支持文生视频和图生视频。\n\n返回任务 ID，可通过 GET 接口查询任务状态。\n",
+        "description": "提交视频生成任务，支持文生视频和图生视频。\n\n返回任务 ID，可通过 GET 接口查询任务状态。\n\n### JDseedance2.0-10（渠道类型 61）\n- 模型示例：`JDseedance2.0-10`、`drrfsmvr2.0`\n- 上游协议：`dance-create` / `dance-query`\n- **必填 metadata 字段**：`ratio`（16:9 / 9:16 / 1:1 / 4:3 / 3:4）、`generate_audio`、`watermark`\n- 多模态素材通过 `metadata.content` 传入，顺序建议：text → image_url → video_url → audio_url\n\n### JDSeedance 旧版（渠道类型 58）\n- 使用 `size`（如 480p）与 `images` 数组\n- 多模态通过 `metadata.content`\n\n### Seedance 素材库引用\n1. 在控制台 **Seedance 素材库** 上传素材\n2. 复制引用地址 `seedance_asset://{本地素材ID}`\n3. 在 `images` 或 `metadata.content[].image_url.url` 中使用\n4. **API Key 必须与上传素材为同一账号**\n5. Authorization 只需一个 `sk-` 前缀：`Bearer sk-xxxx`\n",
         "operationId": "createVideoGeneration",
         "tags": [
           "视频生成"
@@ -1180,11 +1180,23 @@
                 "$ref": "#/components/schemas/VideoRequest"
               },
               "example": {
-                "model": "kling-v1",
-                "prompt": "宇航员在月球上漫步",
-                "duration": 5,
-                "width": 1280,
-                "height": 720
+                "model": "JDseedance2.0-10",
+                "prompt": "让参考图里的角色动起来，阳光草地，欢快氛围",
+                "duration": 11,
+                "metadata": {
+                  "ratio": "16:9",
+                  "generate_audio": true,
+                  "watermark": false,
+                  "content": [
+                    {
+                      "type": "image_url",
+                      "image_url": {
+                        "url": "seedance_asset://1"
+                      },
+                      "role": "reference_image"
+                    }
+                  ]
+                }
               }
             }
           },
@@ -4184,6 +4196,21 @@
             "description": "图片输入 (URL 或 Base64)",
             "example": "https://example.com/image.jpg"
           },
+          "images": {
+            "type": "array",
+            "description": "参考图 URL 列表；Seedance 可用 seedance_asset://{本地素材ID}",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "seedance_asset://1"
+            ]
+          },
+          "size": {
+            "type": "string",
+            "description": "分辨率简写（如 480p、720p），JDSeedance 旧版常用",
+            "example": "480p"
+          },
           "duration": {
             "type": "number",
             "description": "视频时长（秒）",
@@ -4226,9 +4253,29 @@
           },
           "metadata": {
             "type": "object",
-            "description": "扩展参数 (如 negative_prompt, style, quality_level 等)",
+            "description": "扩展参数。JDseedance2.0-10 必填 ratio、generate_audio、watermark；多模态素材放 content 数组",
             "additionalProperties": true,
-            "properties": {}
+            "properties": {
+              "ratio": {
+                "type": "string",
+                "example": "16:9"
+              },
+              "generate_audio": {
+                "type": "boolean",
+                "example": true
+              },
+              "watermark": {
+                "type": "boolean",
+                "example": false
+              },
+              "content": {
+                "type": "array",
+                "description": "多模态内容项（text / image_url / video_url / audio_url）",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
           }
         }
       },

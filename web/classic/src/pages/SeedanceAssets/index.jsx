@@ -191,6 +191,34 @@ const SeedanceAssets = () => {
         </div>
       </div>
 
+      <Card className='mb-4'>
+        <Title heading={6}>{t('How to use Seedance assets in video generation')}</Title>
+        <Text type='secondary' className='block mb-2'>
+          {t('Upload assets here and copy the seedance_asset:// reference.')}
+        </Text>
+        <Text type='secondary' className='block mb-2'>
+          {t('Call POST /v1/video/generations with your API key (same account).')}
+        </Text>
+        <pre className='bg-gray-50 p-3 rounded text-xs overflow-x-auto'>
+{`POST /v1/video/generations
+{
+  "model": "JDseedance2.0-10",
+  "prompt": "...",
+  "duration": 11,
+  "metadata": {
+    "ratio": "16:9",
+    "generate_audio": true,
+    "watermark": false,
+    "content": [{
+      "type": "image_url",
+      "image_url": { "url": "seedance_asset://1" },
+      "role": "reference_image"
+    }]
+  }
+}`}
+        </pre>
+      </Card>
+
       <div className='grid gap-4 md:grid-cols-[240px_1fr]'>
         <Card title={t('Asset groups')}>
           {groups.map((group) => (

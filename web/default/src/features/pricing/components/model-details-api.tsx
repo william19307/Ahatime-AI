@@ -599,6 +599,7 @@ function buildImageSample(lang: Lang, ctx: SampleContext): string {
 // /v1/video/generations endpoint, not chat. Detect them by endpoint type,
 // path, or model name so the sample matches the real call.
 const VIDEO_MODEL_PATTERN = /seedance|drrfsmvr|video-gen/i
+const JDSEEDANCE20_MODEL_PATTERN = /JDseedance2\.0-10/i
 
 function isVideoEndpoint(ctx: SampleContext): boolean {
   return (
@@ -608,7 +609,209 @@ function isVideoEndpoint(ctx: SampleContext): boolean {
   )
 }
 
+function isJDSeedance20Model(modelName: string): boolean {
+  return JDSEEDANCE20_MODEL_PATTERN.test(modelName)
+}
+
+function isLegacySeedanceModel(modelName: string): boolean {
+  return VIDEO_MODEL_PATTERN.test(modelName) && !isJDSeedance20Model(modelName)
+}
+
+function buildVideoSampleJD20(lang: Lang, ctx: SampleContext): string {
+  const url = `${ctx.baseUrl}/v1/video/generations`
+  const key = ctx.apiKeyEnv
+  const model = ctx.modelName || 'JDseedance2.0-10'
+  const prompt = '让参考图里的角色动起来，阳光草地，欢快氛围'
+  const metadataExample = JSON.stringify({
+    ratio: '16:9',
+    generate_audio: true,
+    watermark: false,
+    content: [
+      {
+        type: 'image_url',
+        image_url: { url: 'seedance_asset://1' },
+        role: 'reference_image',
+      },
+    ],
+  })
+
+  if (lang === 'curl') {
+    return [
+      '# JDseedance2.0-10 — dance-create 协议（ratio / generate_audio / watermark 必填）',
+      '# 素材引用：先在控制台「Seedance 素材库」上传，复制 seedance_asset://ID',
+      `curl ${url} -X POST \\`,
+      `  -H "Authorization: Bearer $${key}" \\`,
+      `  -H "Content-Type: application/json" \\`,
+      `  -d '{"model":"${model}","prompt":"${prompt}","duration":11,"metadata":${metadataExample}}'`,
+      '',
+      '# 多模态（参考视频/音频）— metadata.content 顺序：text → image → video → audio',
+      `curl ${url} -X POST \\`,
+      `  -H "Authorization: Bearer $${key}" \\`,
+      `  -H "Content-Type: application/json" \\`,
+      `  -d '{"model":"${model}","prompt":"参考视频运镜","duration":8,"metadata":{"ratio":"16:9","generate_audio":true,"watermark":false,"content":[{"type":"video_url","video_url":{"url":"seedance_asset://2"},"role":"reference_video"}]}}'`,
+      '',
+      '# 查询 — GET /v1/video/generations/{id}，completed 时取 metadata.url',
+      `curl ${url}/任务ID -H "Authorization: Bearer $${key}"`,
+    ].join('\n')
+  }
+
+  if (lang === 'python') {
+    return [
+      'import requests',
+      '',
+      `BASE = "${url}"`,
+      'HEADERS = {',
+      '    "Authorization": "Bearer <YOUR_API_KEY>",',
+      '    "Content-Type": "application/json",',
+      '}',
+      '',
+      'payload = {',
+      `    "model": "${model}",`,
+      `    "prompt": "${prompt}",`,
+      '    "duration": 11,',
+      '    "metadata": {',
+      '        "ratio": "16:9",',
+      '        "generate_audio": True,',
+      '        "watermark": False,',
+      '        "content": [{',
+      '            "type": "image_url",',
+      '            "image_url": {"url": "seedance_asset://1"},',
+      '            "role": "reference_image",',
+      '        }],',
+      '    },',
+      '}',
+      'task = requests.post(BASE, headers=HEADERS, json=payload).json()',
+      'video_id = task["id"]',
+      'result = requests.get(f"{BASE}/{video_id}", headers=HEADERS).json()',
+      'print(result)',
+    ].join('\n')
+  }
+
+  return [
+    `const BASE = '${url}'`,
+    `const headers = {`,
+    `  Authorization: \`Bearer \${process.env.${key}}\`,`,
+    `  'Content-Type': 'application/json',`,
+    `}`,
+    '',
+    `const submit = await fetch(BASE, {`,
+    `  method: 'POST',`,
+    `  headers,`,
+    `  body: JSON.stringify({`,
+    `    model: '${model}',`,
+    `    prompt: '${prompt}',`,
+    `    duration: 11,`,
+    `    metadata: {`,
+    `      ratio: '16:9',`,
+    `      generate_audio: true,`,
+    `      watermark: false,`,
+    `      content: [{`,
+    `        type: 'image_url',`,
+    `        image_url: { url: 'seedance_asset://1' },`,
+    `        role: 'reference_image',`,
+    `      }],`,
+    `    },`,
+    `  }),`,
+    `})`,
+    `const { id } = await submit.json()`,
+    `const result = await fetch(\`\${BASE}/\${id}\`, { headers })`,
+    `console.log(await result.json())`,
+  ].join('\n')
+}
+
+function buildVideoSampleLegacySeedance(lang: Lang, ctx: SampleContext): string {
+  const url = `${ctx.baseUrl}/v1/video/generations`
+  const key = ctx.apiKeyEnv
+  const model = ctx.modelName
+  const prompt =
+    '一只小狗笑嘻嘻地飞奔去捡飞盘，叼住飞盘开心跑回，阳光草地，欢快氛围'
+
+  if (lang === 'curl') {
+    return [
+      '# JDSeedance (type 58) — plugin-u 协议',
+      '# 素材库引用：images 或 metadata.content 中使用 seedance_asset://ID',
+      '# ① 文生视频',
+      `curl ${url} -X POST \\`,
+      `  -H "Authorization: Bearer $${key}" \\`,
+      `  -H "Content-Type: application/json" \\`,
+      `  -d '{"model":"${model}","prompt":"${prompt}","duration":5,"size":"480p"}'`,
+      '',
+      '# ② 图生视频 — images 数组（可用 seedance_asset://ID）',
+      `curl ${url} -X POST \\`,
+      `  -H "Authorization: Bearer $${key}" \\`,
+      `  -H "Content-Type: application/json" \\`,
+      `  -d '{"model":"${model}","prompt":"让参考图动起来","duration":5,"size":"480p","images":["seedance_asset://1"]}'`,
+      '',
+      '# ③ 参考视频/音频 — metadata.content',
+      `curl ${url} -X POST \\`,
+      `  -H "Authorization: Bearer $${key}" \\`,
+      `  -H "Content-Type: application/json" \\`,
+      `  -d '{"model":"${model}","prompt":"参考该视频的运镜","duration":5,"size":"480p","metadata":{"content":[{"type":"video_url","video_url":{"url":"seedance_asset://2"},"role":"reference_video"}]}}'`,
+      '',
+      '# ④ 查询结果',
+      `curl ${url}/任务ID -H "Authorization: Bearer $${key}"`,
+      '',
+      '# ⑤ 取消（可选）',
+      `curl ${url}/任务ID/cancel -X POST -H "Authorization: Bearer $${key}"`,
+    ].join('\n')
+  }
+
+  if (lang === 'python') {
+    return [
+      'import requests',
+      '',
+      `BASE = "${url}"`,
+      'HEADERS = {',
+      '    "Authorization": "Bearer <YOUR_API_KEY>",',
+      '    "Content-Type": "application/json",',
+      '}',
+      '',
+      'payload = {',
+      `    "model": "${model}",`,
+      `    "prompt": "${prompt}",`,
+      '    "duration": 5,',
+      '    "size": "480p",',
+      '    # "images": ["seedance_asset://1"],',
+      '}',
+      'task = requests.post(BASE, headers=HEADERS, json=payload).json()',
+      'video_id = task["id"]',
+      'result = requests.get(f"{BASE}/{video_id}", headers=HEADERS).json()',
+      'print(result)',
+    ].join('\n')
+  }
+
+  return [
+    `const BASE = '${url}'`,
+    `const headers = {`,
+    `  Authorization: \`Bearer \${process.env.${key}}\`,`,
+    `  'Content-Type': 'application/json',`,
+    `}`,
+    '',
+    `const submit = await fetch(BASE, {`,
+    `  method: 'POST',`,
+    `  headers,`,
+    `  body: JSON.stringify({`,
+    `    model: '${model}',`,
+    `    prompt: '${prompt}',`,
+    `    duration: 5,`,
+    `    size: '480p',`,
+    `    // images: ['seedance_asset://1'],`,
+    `  }),`,
+    `})`,
+    `const { id } = await submit.json()`,
+    `const result = await fetch(\`\${BASE}/\${id}\`, { headers })`,
+    `console.log(await result.json())`,
+  ].join('\n')
+}
+
 function buildVideoSample(lang: Lang, ctx: SampleContext): string {
+  if (isJDSeedance20Model(ctx.modelName)) {
+    return buildVideoSampleJD20(lang, ctx)
+  }
+  if (isLegacySeedanceModel(ctx.modelName)) {
+    return buildVideoSampleLegacySeedance(lang, ctx)
+  }
+
   const url = `${ctx.baseUrl}/v1/video/generations`
   const key = ctx.apiKeyEnv
   const model = ctx.modelName
