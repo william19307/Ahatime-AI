@@ -58,6 +58,7 @@ const (
 	ChannelTypeJDSeedance     = 58
 	ChannelTypeJDGemini       = 59
 	ChannelTypeJDImage        = 60
+	ChannelTypeJDSeedance20   = 61
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -124,6 +125,7 @@ var ChannelBaseURLs = []string{
 	"https://agentrs.jd.com",                    //58
 	"https://agentrs.jd.com/api/saas/openai-u", //59
 	"https://agentrs.jd.com",                   //60
+	"https://agentrs.jd.com",                   //61
 }
 
 var ChannelTypeNames = map[int]string{
@@ -184,6 +186,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeJDSeedance:     "JDSeedance",
 	ChannelTypeJDGemini:       "JD Gemini 推理",
 	ChannelTypeJDImage:        "JD Image",
+	ChannelTypeJDSeedance20:   "JDseedance2.0-10",
 }
 
 func GetChannelTypeName(channelType int) string {

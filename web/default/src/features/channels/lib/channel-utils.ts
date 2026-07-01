@@ -102,6 +102,7 @@ export function getChannelTypeIcon(type: number): string {
     55: 'OpenAI', // Sora
     54: 'Doubao', // DoubaoVideo
     58: 'Doubao', // JDSeedance
+    61: 'Doubao', // JDseedance2.0-10
     60: 'OpenAI', // JD Image
     56: 'Replicate', // Replicate
 

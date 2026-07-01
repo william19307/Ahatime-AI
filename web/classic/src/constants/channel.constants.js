@@ -204,6 +204,11 @@ export const CHANNEL_OPTIONS = [
     color: 'blue',
     label: 'JD Image',
   },
+  {
+    value: 61,
+    color: 'blue',
+    label: 'JDseedance2.0-10',
+  },
 ];
 
 // Channel types that support upstream model list fetching in UI.

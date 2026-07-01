@@ -115,6 +115,18 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       other: 'Supports /v1/images/generations and /v1/images/edits',
     },
   },
+  61: {
+    id: 61,
+    name: CHANNEL_TYPES[61],
+    icon: 'Doubao',
+    defaultBaseUrl: 'https://agentrs.jd.com',
+    hints: {
+      baseUrl: 'Default: https://agentrs.jd.com',
+      key: 'JoyAgent resource center API KEY',
+      models: 'JDseedance2.0-10,drrfsmvr2.0',
+      other: 'Uses dance-create / dance-query endpoints for Seedance 2.0',
+    },
+  },
   41: {
     id: 41,
     name: CHANNEL_TYPES[41],

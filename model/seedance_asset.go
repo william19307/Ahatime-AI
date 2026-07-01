@@ -299,22 +299,25 @@ func ListSeedanceAssetsPendingSync(limit int) ([]SeedanceAsset, error) {
 func GetJDSeedanceChannel(userGroup string) (*Channel, error) {
 	groups := []string{userGroup, "default"}
 	seen := make(map[string]bool)
+	channelTypes := []int{constant.ChannelTypeJDSeedance, constant.ChannelTypeJDSeedance20}
 	for _, group := range groups {
 		group = strings.TrimSpace(group)
 		if group == "" || seen[group] {
 			continue
 		}
 		seen[group] = true
-		var channel Channel
-		err := DB.Where("type = ? AND `group` = ? AND status = ?",
-			constant.ChannelTypeJDSeedance, group, common.ChannelStatusEnabled).
-			Order("priority DESC, id ASC").
-			First(&channel).Error
-		if err == nil {
-			return &channel, nil
-		}
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, err
+		for _, channelType := range channelTypes {
+			var channel Channel
+			err := DB.Where("type = ? AND `group` = ? AND status = ?",
+				channelType, group, common.ChannelStatusEnabled).
+				Order("priority DESC, id ASC").
+				First(&channel).Error
+			if err == nil {
+				return &channel, nil
+			}
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, err
+			}
 		}
 	}
 	return nil, fmt.Errorf("no enabled JDSeedance channel found for group %q", userGroup)
