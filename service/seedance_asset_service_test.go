@@ -221,3 +221,32 @@ func TestSeedanceListAssetsScopedByUser(t *testing.T) {
 		t.Fatalf("unexpected assets for user A: %+v", assetsA)
 	}
 }
+
+func TestSeedanceCreateAssetNormalizesAssetType(t *testing.T) {
+	setupSeedanceServiceTestDB(t)
+	mock := newMockSeedanceUpstream()
+	svc := newTestSeedanceService(mock)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	group, err := svc.CreateGroup(1, "group-a", "", "AIGC", true)
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	asset, err := svc.CreateAsset(1, CreateSeedanceAssetInput{
+		GroupID: group.Id, URL: server.URL + "/a.jpg", AssetType: "image", Name: "asset-a",
+	}, "https://api.example.com")
+	if err != nil {
+		t.Fatalf("create asset: %v", err)
+	}
+	if asset.AssetType != "Image" {
+		t.Fatalf("expected normalized asset type Image, got %q", asset.AssetType)
+	}
+	for _, upstream := range mock.assets {
+		if upstream.AssetType != "Image" {
+			t.Fatalf("expected upstream asset type Image, got %q", upstream.AssetType)
+		}
+	}
+}

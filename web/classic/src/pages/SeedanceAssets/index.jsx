@@ -34,7 +34,7 @@ const SeedanceAssets = () => {
   const [assetModalOpen, setAssetModalOpen] = useState(false);
   const [groupName, setGroupName] = useState('');
   const [assetName, setAssetName] = useState('');
-  const [assetType, setAssetType] = useState('image');
+  const [assetType, setAssetType] = useState('Image');
   const [assetUrl, setAssetUrl] = useState('');
 
   const loadGroups = useCallback(async () => {
@@ -255,9 +255,9 @@ const SeedanceAssets = () => {
             value={assetType}
             onChange={setAssetType}
             optionList={[
-              { value: 'image', label: 'image' },
-              { value: 'video', label: 'video' },
-              { value: 'audio', label: 'audio' },
+              { value: 'Image', label: 'Image' },
+              { value: 'Video', label: 'Video' },
+              { value: 'Audio', label: 'Audio' },
             ]}
             style={{ width: '100%' }}
           />

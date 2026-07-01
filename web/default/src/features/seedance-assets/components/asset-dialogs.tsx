@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { SEEDANCE_ASSET_TYPES } from '../constants'
+import { inferSeedanceAssetTypeFromFile } from '../lib/asset-type'
 
 type CreateAssetDialogProps = {
   open: boolean
@@ -46,14 +47,14 @@ type CreateAssetDialogProps = {
 export function CreateAssetDialog(props: CreateAssetDialogProps) {
   const { t } = useTranslation()
   const [name, setName] = useState('')
-  const [assetType, setAssetType] = useState<string>('image')
+  const [assetType, setAssetType] = useState<string>('Image')
   const [assetUrl, setAssetUrl] = useState('')
   const [uploadId, setUploadId] = useState<number | undefined>()
 
   useEffect(() => {
     if (!props.open) {
       setName('')
-      setAssetType('image')
+      setAssetType('Image')
       setAssetUrl('')
       setUploadId(undefined)
     }
@@ -61,6 +62,8 @@ export function CreateAssetDialog(props: CreateAssetDialogProps) {
 
   const handleUpload = async (file: File | undefined) => {
     if (!file) return
+    const inferred = inferSeedanceAssetTypeFromFile(file)
+    if (inferred) setAssetType(inferred)
     const result = await props.onUpload(file)
     if (result.uploadId) setUploadId(result.uploadId)
     if (result.publicUrl) setAssetUrl(result.publicUrl)
@@ -81,7 +84,7 @@ export function CreateAssetDialog(props: CreateAssetDialogProps) {
             <Label>{t('Asset type')}</Label>
             <Select
               value={assetType}
-              onValueChange={(value) => setAssetType(value ?? 'image')}
+              onValueChange={(value) => setAssetType(value ?? 'Image')}
             >
               <SelectTrigger>
                 <SelectValue placeholder={t('Asset type')} />

@@ -8,9 +8,9 @@ License, or (at your option) any later version.
 */
 
 export const SEEDANCE_ASSET_TYPES = [
-  'image',
-  'video',
-  'audio',
+  'Image',
+  'Video',
+  'Audio',
 ] as const
 
 export type SeedanceAssetType = (typeof SEEDANCE_ASSET_TYPES)[number]

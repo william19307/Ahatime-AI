@@ -217,8 +217,10 @@ func (s *SeedanceAssetService) CreateAsset(userId int, input CreateSeedanceAsset
 		return nil, err
 	}
 	assetURL := strings.TrimSpace(input.URL)
+	var upload *model.SeedanceUpload
 	if input.UploadID > 0 {
-		upload, uploadErr := model.GetSeedanceUploadByID(userId, input.UploadID)
+		var uploadErr error
+		upload, uploadErr = model.GetSeedanceUploadByID(userId, input.UploadID)
 		if uploadErr != nil {
 			return nil, uploadErr
 		}
@@ -239,9 +241,21 @@ func (s *SeedanceAssetService) CreateAsset(userId int, input CreateSeedanceAsset
 		}
 	}
 	assetType := strings.TrimSpace(input.AssetType)
+	if assetType == "" && upload != nil {
+		inferred, inferErr := InferSeedanceAssetTypeFromMIME(upload.MimeType)
+		if inferErr != nil {
+			return nil, inferErr
+		}
+		assetType = inferred
+	}
 	if assetType == "" {
 		return nil, errors.New("asset_type is required")
 	}
+	normalizedType, err := NormalizeSeedanceAssetType(assetType)
+	if err != nil {
+		return nil, err
+	}
+	assetType = normalizedType
 	client, err := s.resolveClient(userId)
 	if err != nil {
 		return nil, err
