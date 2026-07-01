@@ -1,7 +1,10 @@
 package service
 
 import (
+	"bytes"
 	"fmt"
+	"image"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -122,13 +125,31 @@ func newTestSeedanceService(mock *mockSeedanceUpstream) *SeedanceAssetService {
 	return svc
 }
 
+func seedanceServiceTestPNG300(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 300, 300))
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("encode png: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func seedanceServiceTestImageServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	pngData := seedanceServiceTestPNG300(t)
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(pngData)
+	}))
+}
+
 func TestSeedanceAssetIsolationBetweenUsers(t *testing.T) {
 	setupSeedanceServiceTestDB(t)
 	mock := newMockSeedanceUpstream()
 	svc := newTestSeedanceService(mock)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
+	server := seedanceServiceTestImageServer(t)
 	defer server.Close()
 
 	groupA, err := svc.CreateGroup(1, "group-a", "", "AIGC", true)
@@ -199,9 +220,7 @@ func TestSeedanceListAssetsScopedByUser(t *testing.T) {
 	setupSeedanceServiceTestDB(t)
 	mock := newMockSeedanceUpstream()
 	svc := newTestSeedanceService(mock)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
+	server := seedanceServiceTestImageServer(t)
 	defer server.Close()
 
 	groupA, _ := svc.CreateGroup(1, "group-a", "", "AIGC", true)
@@ -226,9 +245,7 @@ func TestSeedanceCreateAssetNormalizesAssetType(t *testing.T) {
 	setupSeedanceServiceTestDB(t)
 	mock := newMockSeedanceUpstream()
 	svc := newTestSeedanceService(mock)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
+	server := seedanceServiceTestImageServer(t)
 	defer server.Close()
 
 	group, err := svc.CreateGroup(1, "group-a", "", "AIGC", true)

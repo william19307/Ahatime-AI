@@ -9,6 +9,7 @@ License, or (at your option) any later version.
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Upload01Icon } from '@hugeicons/core-free-icons'
 import { Button } from '@/components/ui/button'
@@ -29,7 +30,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { SEEDANCE_ASSET_TYPES } from '../constants'
-import { inferSeedanceAssetTypeFromFile } from '../lib/asset-type'
+import {
+  inferSeedanceAssetTypeFromFile,
+  validateSeedanceImageFileDimensions,
+} from '../lib/asset-type'
 
 type CreateAssetDialogProps = {
   open: boolean
@@ -62,6 +66,11 @@ export function CreateAssetDialog(props: CreateAssetDialogProps) {
 
   const handleUpload = async (file: File | undefined) => {
     if (!file) return
+    const dimensionError = await validateSeedanceImageFileDimensions(file)
+    if (dimensionError) {
+      toast.error(dimensionError)
+      return
+    }
     const inferred = inferSeedanceAssetTypeFromFile(file)
     if (inferred) setAssetType(inferred)
     const result = await props.onUpload(file)
@@ -104,6 +113,11 @@ export function CreateAssetDialog(props: CreateAssetDialogProps) {
               className='mt-2'
             />
           </div>
+          <p className='text-muted-foreground text-xs'>
+            {t(
+              'Seedance image requirements: each side 300-6000 px, aspect ratio 0.4-2.5, max 30 MB.',
+            )}
+          </p>
           <div className='space-y-1'>
             <Label>{t('Public URL')}</Label>
             <Input

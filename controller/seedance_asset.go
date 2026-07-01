@@ -28,9 +28,15 @@ func seedanceAssetError(c *gin.Context, err error) {
 		common.ApiErrorMsg(c, "Unsupported upload file type")
 	case errors.Is(err, service.ErrSeedanceURLUnreachable):
 		common.ApiErrorMsg(c, "Asset URL is not reachable")
+	case errors.Is(err, service.ErrSeedanceImageDimensions):
+		common.ApiErrorMsg(c, err.Error())
 	case errors.Is(err, service.ErrSeedanceUpstreamSyncFailed):
 		common.ApiErrorMsg(c, "Failed to sync asset status from upstream")
 	default:
+		if msg := service.FormatSeedanceUpstreamError(err); msg != "" && strings.Contains(err.Error(), "seedance upstream error:") {
+			common.ApiErrorMsg(c, msg)
+			return
+		}
 		common.ApiError(c, err)
 	}
 }

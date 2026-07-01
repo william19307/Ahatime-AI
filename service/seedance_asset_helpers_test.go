@@ -1,6 +1,10 @@
 package service
 
 import (
+	"bytes"
+	"fmt"
+	"image"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -43,6 +47,51 @@ func TestInferSeedanceAssetTypeFromMIME(t *testing.T) {
 	}
 }
 
+func TestValidateSeedanceImageDimensions(t *testing.T) {
+	if err := validateSeedanceImageDimensions(300, 300); err != nil {
+		t.Fatalf("expected 300x300 valid: %v", err)
+	}
+	if err := validateSeedanceImageDimensions(299, 400); err == nil {
+		t.Fatal("expected too small width to fail")
+	}
+	if err := validateSeedanceImageDimensions(400, 7000); err == nil {
+		t.Fatal("expected too tall image to fail")
+	}
+	if err := validateSeedanceImageDimensions(1000, 3000); err == nil {
+		t.Fatal("expected aspect ratio failure")
+	}
+}
+
+func seedanceTestPNG300(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 300, 300))
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("encode png: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func TestValidateSeedanceImageURL(t *testing.T) {
+	pngData := seedanceTestPNG300(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(pngData)
+	}))
+	defer server.Close()
+
+	if err := validateSeedanceImageURL(server.URL + "/ok.png"); err != nil {
+		t.Fatalf("expected valid image url: %v", err)
+	}
+}
+
+func TestFormatSeedanceUpstreamError(t *testing.T) {
+	msg := FormatSeedanceUpstreamError(fmt.Errorf("seedance upstream error: [400] WidthTooSmall"))
+	if !strings.Contains(msg, "300") || !strings.Contains(msg, "6000") {
+		t.Fatalf("unexpected formatted message: %q", msg)
+	}
+}
+
 func TestValidateSeedanceUploadMIME(t *testing.T) {
 	if err := validateSeedanceUploadMIME("image/png"); err != nil {
 		t.Fatalf("expected png allowed: %v", err)
@@ -53,12 +102,15 @@ func TestValidateSeedanceUploadMIME(t *testing.T) {
 }
 
 func TestValidateSeedanceAssetURLReachable(t *testing.T) {
+	pngData := seedanceTestPNG300(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/missing") {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
+		w.Header().Set("Content-Type", "image/png")
 		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(pngData)
 	}))
 	defer server.Close()
 

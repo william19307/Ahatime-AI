@@ -256,6 +256,18 @@ func (s *SeedanceAssetService) CreateAsset(userId int, input CreateSeedanceAsset
 		return nil, err
 	}
 	assetType = normalizedType
+	if assetType == "Image" {
+		switch {
+		case upload != nil:
+			if err := validateSeedanceImageFile(upload.StoragePath); err != nil {
+				return nil, err
+			}
+		default:
+			if err := validateSeedanceImageURL(assetURL); err != nil {
+				return nil, err
+			}
+		}
+	}
 	client, err := s.resolveClient(userId)
 	if err != nil {
 		return nil, err
@@ -370,6 +382,12 @@ func (s *SeedanceAssetService) UploadFile(userId int, header *multipart.FileHead
 	if err != nil {
 		_ = os.Remove(storagePath)
 		return nil, "", err
+	}
+	if strings.HasPrefix(mimeType, "image/") {
+		if err := validateSeedanceImageFile(storagePath); err != nil {
+			_ = os.Remove(storagePath)
+			return nil, "", err
+		}
 	}
 
 	expiresAt := time.Now().Unix() + int64(seedanceFileTokenTTL())
