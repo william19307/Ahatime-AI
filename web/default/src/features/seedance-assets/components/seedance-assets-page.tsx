@@ -20,6 +20,7 @@ import { CreateAssetDialog, EditAssetDialog } from './asset-dialogs'
 import { DeleteAssetDialog } from './delete-asset-dialog'
 import { AssetGroupList } from './asset-group-list'
 import { CreateGroupDialog, EditGroupDialog } from './group-dialogs'
+import { SeedanceUsageGuide } from './seedance-usage-guide'
 import {
   useSeedanceAssetMutations,
   useSeedanceAssets,
@@ -72,6 +73,7 @@ export function SeedanceAssetsPage() {
             />
 
             <div className='min-w-0 flex-1'>
+              <SeedanceUsageGuide />
               <div className='mb-4 flex items-center gap-2'>
                 <Input
                   value={keyword}
