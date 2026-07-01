@@ -68,6 +68,40 @@ func NewSeedanceAssetClient(baseURL, apiKey string) *SeedanceAssetClient {
 	}
 }
 
+type seedanceUpstreamError struct {
+	Code    any    `json:"Code"`
+	Message string `json:"Message"`
+}
+
+func seedanceUpstreamErrorActive(err *seedanceUpstreamError) bool {
+	if err == nil {
+		return false
+	}
+	code := strings.TrimSpace(fmt.Sprintf("%v", err.Code))
+	if code == "" || code == "0" || code == "<nil>" {
+		return strings.TrimSpace(err.Message) != ""
+	}
+	return true
+}
+
+func seedanceUpstreamErrorString(err *seedanceUpstreamError) string {
+	if err == nil {
+		return "unknown upstream error"
+	}
+	code := strings.TrimSpace(fmt.Sprintf("%v", err.Code))
+	msg := strings.TrimSpace(err.Message)
+	if code != "" && code != "0" && code != "<nil>" && msg != "" {
+		return fmt.Sprintf("[%s] %s", code, msg)
+	}
+	if msg != "" {
+		return msg
+	}
+	if code != "" && code != "0" && code != "<nil>" {
+		return fmt.Sprintf("upstream error code %s", code)
+	}
+	return "unknown upstream error"
+}
+
 func (c *SeedanceAssetClient) post(action string, body any, result any) error {
 	if c == nil {
 		return fmt.Errorf("seedance asset client is nil")
@@ -101,16 +135,13 @@ func (c *SeedanceAssetClient) post(action string, body any, result any) error {
 	var envelope struct {
 		ResponseMetadata seedanceResponseMetadata `json:"ResponseMetadata"`
 		Result           any                      `json:"Result"`
-		Error            *struct {
-			Code    string `json:"Code"`
-			Message string `json:"Message"`
-		} `json:"Error"`
+		Error            *seedanceUpstreamError   `json:"Error"`
 	}
 	if err := common.Unmarshal(respBody, &envelope); err != nil {
 		return fmt.Errorf("decode seedance response failed: %w", err)
 	}
-	if envelope.Error != nil && envelope.Error.Message != "" {
-		return fmt.Errorf("seedance upstream error: %s", envelope.Error.Message)
+	if seedanceUpstreamErrorActive(envelope.Error) {
+		return fmt.Errorf("seedance upstream error: %s", seedanceUpstreamErrorString(envelope.Error))
 	}
 	if result == nil || envelope.Result == nil {
 		return nil
